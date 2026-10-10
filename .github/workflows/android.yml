@@ -3,8 +3,12 @@ name: Build APK
 on:
   push:
     branches: [main]
+    paths-ignore: ["web/**", ".github/workflows/pages.yml"]
   pull_request:
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -38,3 +42,17 @@ jobs:
           name: LichAmDuong-apk
           path: LichAmDuong.apk
           retention-days: 30
+
+      # Mỗi lần cập nhật nhánh main: đăng APK lên mục Releases.
+      # Link tải luôn trỏ bản mới nhất: /releases/latest/download/LichAmDuong.apk
+      - name: Đăng bản phát hành
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="v1.0.${{ github.run_number }}"
+          gh release create "$TAG" LichAmDuong.apk \
+            --repo "${{ github.repository }}" \
+            --title "Lịch Âm Dương $TAG" \
+            --notes "Bản Android build tự động từ commit ${{ github.sha }}. Tải file LichAmDuong.apk về điện thoại Android rồi mở để cài (cho phép cài ứng dụng từ nguồn này nếu máy hỏi)." \
+            --latest

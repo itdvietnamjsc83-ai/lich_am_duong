@@ -4,6 +4,19 @@ Nhà phát triển: **Công ty cổ phần Công nghệ ITD Việt Nam**
 Điện thoại / Zalo: 0988095867 · Email: vanthu.itdvn@gmail.com · Website: itdvietnam.com.vn
 Địa chỉ: Số 1 Ngõ 30 đường Lý Sơn, Hà Nội
 
+## Tải và dùng ngay
+
+- **Android:** tải [LichAmDuong.apk](https://github.com/itdvietnamjsc83-ai/lich_am_duong/releases/latest/download/LichAmDuong.apk) về điện thoại, mở file để cài. Nếu máy hỏi, cho phép cài ứng dụng từ nguồn này.
+- **iPhone / iPad:**
+  1. Mở <https://itdvietnamjsc83-ai.github.io/lich_am_duong/> bằng **Safari**.
+  2. Bấm nút **Chia sẻ**, chọn **Thêm vào MH chính**.
+  3. Ứng dụng có biểu tượng riêng trên màn hình chính và dùng được khi không có mạng.
+  4. Muốn được báo nhắc lịch đúng giờ: bấm **Thêm vào ứng dụng Lịch**. Các lần nhắc sẽ chuyển sang ứng dụng Lịch của iPhone, và Lịch sẽ báo đúng giờ.
+
+Cả hai bản đều được GitHub Actions tự build và tự cập nhật mỗi khi mã nguồn thay đổi:
+- `.github/workflows/android.yml` build file APK và đăng lên mục Releases.
+- `.github/workflows/pages.yml` đưa thư mục `web/` lên GitHub Pages.
+
 ## Chức năng
 
 - **Lịch tháng**: số dương lịch lớn, số âm lịch bên dưới. Ngày được tô màu như sau:
@@ -59,6 +72,20 @@ Bộ kiểm thử nằm ở `app/src/test/.../LunarCalendarTest.kt`. Nội dung 
 - Đổi qua lại âm ↔ dương, trải từ năm 2000 đến 2060.
 - Can chi, giờ hoàng đạo, tiết khí.
 - Cách tính lần nhắc kế tiếp.
+
+## Bản web cho iPhone (thư mục `web/`)
+
+- Viết bằng HTML/CSS/JavaScript thuần, không phụ thuộc thư viện ngoài.
+- Có `manifest.webmanifest` và `sw.js`, nên cài được lên màn hình chính và chạy offline.
+- `lunar.js` là bản JavaScript của lõi âm lịch Kotlin, cho kết quả giống hệt bản Android.
+- Bố cục tự đổi theo màn hình:
+  - Màn hình hẹp hơn 700px: một ngăn.
+  - iPad, hoặc điện thoại xoay ngang: hai ngăn.
+- Có giao diện tối nền đen tuyền cho màn hình OLED.
+- **Nhắc lịch:** dữ liệu lưu trên máy (localStorage). Trên iOS, trang web không tự báo được khi đang đóng, nên ứng dụng xuất file lịch `.ics`:
+  - Nhắc lịch âm: tạo sẵn các lần nhắc đã quy sang dương lịch, gồm 20 năm tới (lặp hằng năm) hoặc 24 tháng tới (lặp hằng tháng).
+  - Mỗi lần nhắc có báo trước theo cài đặt.
+  - Thêm file này vào ứng dụng Lịch của iPhone thì Lịch sẽ báo đúng giờ.
 
 ## Cấu trúc mã nguồn
 
