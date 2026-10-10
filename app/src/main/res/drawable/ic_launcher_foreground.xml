@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Biểu tượng ứng dụng: tờ lịch có trăng lưỡi liềm, nằm trong vùng an toàn 66dp của biểu tượng thích ứng -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Khung tờ lịch -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M36,34h36a4,4 0,0 1,4 4v32a4,4 0,0 1,-4 4h-36a4,4 0,0 1,-4 -4v-32a4,4 0,0 1,4 -4z" />
+    <!-- Dải tiêu đề -->
+    <path
+        android:fillColor="#7A1A12"
+        android:pathData="M36,34h36a4,4 0,0 1,4 4v6h-44v-6a4,4 0,0 1,4 -4z" />
+    <!-- Khoen treo -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M42,29h4v9h-4zM62,29h4v9h-4z" />
+    <!-- Trăng lưỡi liềm -->
+    <path
+        android:fillColor="#B42318"
+        android:pathData="M58,50a10,10 0,1 0,6 18a8,8 0,1 1,-6 -18z" />
+</vector>
