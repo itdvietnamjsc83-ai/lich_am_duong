@@ -1,5 +1,7 @@
 name: Deploy web (iPhone)
 
+# Đưa thư mục web/ lên nhánh gh-pages; GitHub Pages phục vụ nhánh này tại
+# https://itdvietnamjsc83-ai.github.io/lich_am_duong/
 on:
   push:
     branches: [main]
@@ -7,9 +9,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
   group: pages
@@ -18,21 +18,18 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Lấy mã nguồn
         uses: actions/checkout@v4
 
-      - name: Cấu hình GitHub Pages
-        uses: actions/configure-pages@v5
-
-      - name: Đóng gói thư mục web
-        uses: actions/upload-pages-artifact@v3
+      - name: Đẩy thư mục web lên nhánh gh-pages
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          path: web
-
-      - name: Triển khai
-        id: deployment
-        uses: actions/deploy-pages@v4
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./web
+          publish_branch: gh-pages
+          enable_jekyll: false
+          force_orphan: true
+          user_name: "github-actions[bot]"
+          user_email: "github-actions[bot]@users.noreply.github.com"
+          commit_message: "Cập nhật bản web"
