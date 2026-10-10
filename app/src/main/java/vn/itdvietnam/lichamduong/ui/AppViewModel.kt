@@ -76,6 +76,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setEnabled(reminder: Reminder, enabled: Boolean) = reminderRepo.setEnabled(reminder.id, enabled)
 
+    fun exportBackup(): String = reminderRepo.exportJson()
+    fun importBackup(text: String): ReminderRepository.ImportResult = reminderRepo.importJson(text)
+
     fun setThemeMode(mode: ThemeMode) = settingsRepo.setThemeMode(mode)
     fun setTextSize(size: TextSize) = settingsRepo.setTextSize(size)
 }

@@ -41,6 +41,89 @@ class ReminderRepository private constructor(context: Context) {
         items.value.forEach { scheduler.schedule(it) }
     }
 
+    // ---------- Sao lưu & chuyển máy ----------
+    // Định dạng chung với bản web cho iPhone, nên chuyển qua lại Android ↔ iPhone được.
+
+    data class ImportResult(val added: Int, val skipped: Int)
+
+    fun exportJson(): String {
+        val array = JSONArray()
+        items.value.forEach { r ->
+            array.put(
+                JSONObject()
+                    .put("title", r.title)
+                    .put("cal", if (r.isLunar) "lunar" else "solar")
+                    .put("rep", when (r.repeat) { RepeatType.ONCE -> "once"; RepeatType.MONTHLY -> "month"; RepeatType.YEARLY -> "year" })
+                    .put("d", r.day)
+                    .put("m", r.month)
+                    .put("y", r.year)
+                    .put("extra", JSONArray(r.extraDays))
+                    .put("before", r.beforeDays)
+                    .put("hour", r.hour)
+                    .put("minute", r.minute)
+                    .put("on", r.enabled),
+            )
+        }
+        return JSONObject()
+            .put("app", BACKUP_APP)
+            .put("format", 1)
+            .put("exportedAt", java.time.OffsetDateTime.now().toString())
+            .put("reminders", array)
+            .toString(2)
+    }
+
+    /** Nhập từ file sao lưu: thêm vào danh sách hiện có, bỏ qua nhắc trùng. Ném lỗi nếu file sai định dạng. */
+    @Synchronized
+    fun importJson(text: String): ImportResult {
+        val root = JSONObject(text)
+        require(root.optString("app") == BACKUP_APP) { "Không phải file sao lưu Lịch Âm Dương" }
+        val array = root.getJSONArray("reminders")
+        val keys = items.value.map(::backupKey).toMutableSet()
+        var added = 0
+        var skipped = 0
+        for (i in 0 until array.length()) {
+            val o = array.optJSONObject(i)
+            val calendar = when (o?.optString("cal")) { "lunar" -> CalendarType.LUNAR; "solar" -> CalendarType.SOLAR; else -> null }
+            val repeat = when (o?.optString("rep")) { "once" -> RepeatType.ONCE; "month" -> RepeatType.MONTHLY; "year" -> RepeatType.YEARLY; else -> null }
+            if (o == null || calendar == null || repeat == null) {
+                skipped++
+                continue
+            }
+            val extra = o.optJSONArray("extra")
+            val before = o.optInt("before", 0)
+            val reminder = Reminder(
+                id = 0L,
+                title = o.optString("title", "Nhắc lịch").take(120).ifBlank { "Nhắc lịch" },
+                calendar = calendar,
+                repeat = repeat,
+                day = o.optInt("d", 1).coerceIn(1, if (calendar == CalendarType.LUNAR) 30 else 31),
+                month = o.optInt("m", 1).coerceIn(1, 12),
+                year = o.optInt("y", 2026).coerceIn(1900, 2100),
+                extraDays = if (extra == null) emptyList() else (0 until minOf(extra.length(), 1)).map { extra.optInt(it, 1).coerceIn(1, 31) },
+                beforeDays = if (before in setOf(0, 1, 3, 7)) before else 0,
+                hour = o.optInt("hour", 7).coerceIn(0, 23),
+                minute = o.optInt("minute", 0).coerceIn(0, 59),
+                enabled = o.optBoolean("on", true),
+            )
+            val key = backupKey(reminder)
+            if (key in keys) {
+                skipped++
+                continue
+            }
+            keys.add(key)
+            upsert(reminder)
+            added++
+        }
+        return ImportResult(added, skipped)
+    }
+
+    private fun backupKey(r: Reminder): String = listOf(
+        r.title, r.calendar.name, r.repeat.name, r.day,
+        if (r.repeat == RepeatType.MONTHLY) "" else r.month,
+        if (r.repeat == RepeatType.ONCE) r.year else "",
+        r.extraDays.joinToString("+"),
+    ).joinToString("|")
+
     private fun nextId(): Long {
         val id = prefs.getLong(KEY_NEXT_ID, 1L)
         prefs.edit().putLong(KEY_NEXT_ID, id + 1).apply()
@@ -113,6 +196,7 @@ class ReminderRepository private constructor(context: Context) {
         private const val PREFS = "reminders"
         private const val KEY_ITEMS = "items"
         private const val KEY_NEXT_ID = "next_id"
+        private const val BACKUP_APP = "lich-am-duong"
 
         @Volatile
         private var instance: ReminderRepository? = null

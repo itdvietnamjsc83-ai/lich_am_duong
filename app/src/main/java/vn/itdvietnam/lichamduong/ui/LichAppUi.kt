@@ -2,6 +2,7 @@ package vn.itdvietnam.lichamduong.ui
 
 import android.Manifest
 import android.os.Build
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -106,10 +107,37 @@ fun LichAppUi(vm: AppViewModel, widthSizeClass: WindowWidthSizeClass) {
         }
     }
 
+    fun toast(message: String) = Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+
+    // Sao lưu & chuyển máy: người dùng tự chọn nơi lưu (Tải xuống, Google Drive…) và file để nhập
+    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri != null) {
+            runCatching {
+                context.contentResolver.openOutputStream(uri)?.use { it.write(vm.exportBackup().toByteArray(Charsets.UTF_8)) }
+                    ?: error("Không mở được file")
+            }.onSuccess { toast("Đã xuất ${reminders.size} nhắc lịch ra file sao lưu") }
+                .onFailure { toast("Không lưu được file sao lưu") }
+        }
+    }
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            runCatching {
+                val text = context.contentResolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) }
+                    ?: error("Không đọc được file")
+                vm.importBackup(text)
+            }.onSuccess { r ->
+                toast("Đã nhập ${r.added} nhắc lịch" + if (r.skipped > 0) ", bỏ qua ${r.skipped} nhắc trùng" else "")
+                if (r.added > 0) requestNotifications()
+            }.onFailure { toast("File không đúng định dạng sao lưu của Lịch Âm Dương") }
+        }
+    }
+
     val actions = AppActions(
         vm = vm,
         save = { vm.save(it); requestNotifications() },
         requestNotifications = requestNotifications,
+        exportBackup = { exportLauncher.launch("lich-am-duong-sao-luu-${LocalDate.now()}.json") },
+        importBackup = { importLauncher.launch(arrayOf("application/json", "text/plain", "application/octet-stream", "*/*")) },
     )
 
     BackHandler(enabled = vm.editing != null) { vm.editing = null }
@@ -149,6 +177,8 @@ private class AppActions(
     val vm: AppViewModel,
     val save: (Reminder) -> Unit,
     val requestNotifications: () -> Unit,
+    val exportBackup: () -> Unit,
+    val importBackup: () -> Unit,
 ) {
     fun newReminderFor(date: LocalDate) {
         val l = DayInfo.of(date).lunar
@@ -230,6 +260,9 @@ private fun CompactLayout(
                 onThemeMode = vm::setThemeMode,
                 onTextSize = vm::setTextSize,
                 onRequestNotifications = actions.requestNotifications,
+                reminderCount = reminders.size,
+                onExport = actions.exportBackup,
+                onImport = actions.importBackup,
                 modifier = Modifier.fillMaxSize(),
             )
         }
@@ -312,6 +345,9 @@ private fun TwoPaneLayout(
                             onThemeMode = vm::setThemeMode,
                             onTextSize = vm::setTextSize,
                             onRequestNotifications = actions.requestNotifications,
+                reminderCount = reminders.size,
+                onExport = actions.exportBackup,
+                onImport = actions.importBackup,
                         )
                     }
                 }

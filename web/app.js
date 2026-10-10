@@ -287,6 +287,12 @@
       '<div class="stack-s"><div class="label">Giao diện</div>' + seg([['light', 'Sáng'], ['dark', 'Tối'], ['system', 'Theo máy']], S.theme, 'theme') +
       '<div class="mut">Giao diện tối dùng nền đen tuyền, giúp tiết kiệm pin trên màn hình OLED.</div></div>' +
       '<div class="stack-s"><div class="label">Cỡ chữ</div>' + chips([['md', 'Vừa'], ['lg', 'Lớn'], ['xl', 'Rất lớn']], S.size, 'size') + '</div>';
+    h += '<section class="card"><div class="t1">Sao lưu &amp; chuyển máy</div>' +
+      '<div class="t2" style="line-height:1.5">Xuất ' + reminders.length + ' nhắc lịch ra một file để cất giữ hoặc chuyển sang điện thoại khác (iPhone hay Android đều được). Trên máy mới, mở ứng dụng và chọn <b>Nhập từ file</b>.</div>' +
+      '<div class="g2"><button class="primary" data-act="backup-export" style="height:48px">Xuất file sao lưu</button>' +
+      '<label class="secondary" for="backup-file" role="button" tabindex="0">Nhập từ file</label></div>' +
+      '<input type="file" id="backup-file" accept=".json,application/json,text/plain" hidden>' +
+      '<div class="mut">Nhập sẽ thêm vào danh sách hiện có; nhắc lịch trùng sẽ được bỏ qua.</div></section>';
     if (isIos() && !isStandalone()) {
       h += '<section class="card"><div class="t1">Cài lên màn hình chính iPhone</div><div class="t2" style="line-height:1.5">1. Mở trang này bằng <b>Safari</b>.<br>2. Bấm nút <b>Chia sẻ</b> (hình vuông có mũi tên lên).<br>3. Chọn <b>“Thêm vào MH chính”</b> rồi bấm <b>Thêm</b>.<br>Ứng dụng sẽ có biểu tượng riêng và dùng được khi không có mạng.</div></section>';
     }
@@ -402,6 +408,47 @@
     toast('Đã tạo ' + ev.length + ' lần nhắc. Chọn “Thêm tất cả” trong ứng dụng Lịch.');
   }
 
+  // ---------- Sao lưu & chuyển máy (định dạng chung với bản Android) ----------
+  function backupKey(r) { return [r.title, r.cal, r.rep, r.d, r.rep === 'month' ? '' : r.m, r.rep === 'once' ? r.y : '', (r.extra || []).join('+')].join('|'); }
+  function exportBackup() {
+    var data = {
+      app: 'lich-am-duong', format: 1, exportedAt: new Date().toISOString(),
+      reminders: reminders.map(function (r) {
+        return { title: r.title, cal: r.cal, rep: r.rep, d: r.d, m: r.m, y: r.y, extra: r.extra || [], before: r.before, hour: r.hour, minute: r.minute, on: r.on };
+      })
+    };
+    var s = L.jdToDate(todayJd()), name = 'lich-am-duong-sao-luu-' + s.y + pad(s.m) + pad(s.d) + '.json';
+    var text = JSON.stringify(data, null, 2), file = new File([text], name, { type: 'application/json' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      navigator.share({ files: [file], title: 'Sao lưu Lịch Âm Dương' }).then(function () { toast('Đã xuất ' + reminders.length + ' nhắc lịch'); }).catch(function () {});
+      return;
+    }
+    var url = URL.createObjectURL(file), a = document.createElement('a');
+    a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+    toast('Đã lưu file ' + name);
+  }
+  function importBackup(text) {
+    var data = JSON.parse(text);
+    if (!data || data.app !== 'lich-am-duong' || !Array.isArray(data.reminders)) throw new Error('bad');
+    var keys = reminders.map(backupKey), nextId = reminders.reduce(function (m, x) { return Math.max(m, x.id); }, 0) + 1, added = 0, skipped = 0;
+    data.reminders.forEach(function (x) {
+      if (!x || (x.cal !== 'lunar' && x.cal !== 'solar') || ['once', 'month', 'year'].indexOf(x.rep) < 0) { skipped++; return; }
+      var r = {
+        id: 0, title: String(x.title || 'Nhắc lịch').slice(0, 120), cal: x.cal, rep: x.rep,
+        d: clamp(parseInt(x.d, 10) || 1, 1, x.cal === 'lunar' ? 30 : 31), m: clamp(parseInt(x.m, 10) || 1, 1, 12), y: clamp(parseInt(x.y, 10) || 2026, 1900, 2100),
+        extra: (Array.isArray(x.extra) ? x.extra : []).map(function (v) { return clamp(parseInt(v, 10) || 1, 1, 31); }).slice(0, 1),
+        before: [0, 1, 3, 7].indexOf(+x.before) >= 0 ? +x.before : 0,
+        hour: clamp(parseInt(x.hour, 10) || 0, 0, 23), minute: clamp(parseInt(x.minute, 10) || 0, 0, 59), on: x.on !== false
+      };
+      var k = backupKey(r);
+      if (keys.indexOf(k) >= 0) { skipped++; return; }
+      r.id = nextId++; reminders.push(r); keys.push(k); added++;
+    });
+    saveReminders();
+    return { added: added, skipped: skipped };
+  }
+
   // ---------- Xử lý thao tác ----------
   var A = {
     go: function (a) { S.editing = null; go(a); },
@@ -472,6 +519,10 @@
       if (!window.confirm('Xoá nhắc lịch “' + e.title + '”?')) return;
       reminders = reminders.filter(function (x) { return x.id !== e.id; }); saveReminders(); S.editing = null; render();
     },
+    'backup-export': function () {
+      if (!reminders.length) { toast('Chưa có nhắc lịch nào để xuất.'); return; }
+      exportBackup();
+    },
     theme: function (a) { S.theme = a; store.set('theme', a); applyPrefs(); render(); },
     size: function (a) { S.size = a; store.set('size', a); applyPrefs(); render(); }
   };
@@ -481,6 +532,23 @@
     if (!el || el.disabled) return;
     var fn = A[el.getAttribute('data-act')];
     if (fn) { e.preventDefault(); fn(el.getAttribute('data-arg')); }
+  });
+  app.addEventListener('change', function (e) {
+    if (e.target.id !== 'backup-file' || !e.target.files || !e.target.files[0]) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      try {
+        var res = importBackup(String(reader.result));
+        render();
+        toast('Đã nhập ' + res.added + ' nhắc lịch' + (res.skipped ? ', bỏ qua ' + res.skipped + ' nhắc trùng' : '') + '.');
+        if (res.added && isIos() && window.confirm('Thêm các nhắc lịch vào ứng dụng Lịch của iPhone để được báo đúng giờ?')) exportIcs(reminders, 'lich-am-duong');
+      } catch (err) { toast('File không đúng định dạng sao lưu của Lịch Âm Dương.'); }
+    };
+    reader.readAsText(e.target.files[0]);
+    e.target.value = '';
+  });
+  app.addEventListener('keydown', function (e) {
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.getAttribute('for') === 'backup-file') { e.preventDefault(); document.getElementById('backup-file').click(); }
   });
   app.addEventListener('input', function (e) {
     if (e.target.id === 'ed-title' && S.editing) S.editing.title = e.target.value;

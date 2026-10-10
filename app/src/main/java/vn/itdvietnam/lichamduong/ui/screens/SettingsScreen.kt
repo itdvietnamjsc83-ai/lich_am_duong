@@ -64,6 +64,9 @@ fun SettingsScreen(
     onThemeMode: (ThemeMode) -> Unit,
     onTextSize: (TextSize) -> Unit,
     onRequestNotifications: () -> Unit,
+    reminderCount: Int,
+    onExport: () -> Unit,
+    onImport: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val cs = MaterialTheme.colorScheme
@@ -100,6 +103,35 @@ fun SettingsScreen(
                 label = { it.label },
                 onSelect = onTextSize,
             )
+        }
+
+        Surface(shape = RoundedCornerShape(18.dp), color = cs.surfaceVariant, modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Sao lưu & chuyển máy", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(
+                    "Xuất $reminderCount nhắc lịch ra một file để cất giữ (Google Drive, Zalo, máy tính…) hoặc chuyển sang điện thoại khác, " +
+                        "kể cả iPhone. Trên máy mới, mở ứng dụng và chọn “Nhập từ file”.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = onExport,
+                        enabled = reminderCount > 0,
+                        modifier = Modifier.weight(1f).height(48.dp),
+                        shape = RoundedCornerShape(14.dp),
+                    ) { Text("Xuất file sao lưu", fontWeight = FontWeight.Bold) }
+                    OutlinedButton(
+                        onClick = onImport,
+                        modifier = Modifier.weight(1f).height(48.dp),
+                        shape = RoundedCornerShape(14.dp),
+                    ) { Text("Nhập từ file", fontWeight = FontWeight.Bold) }
+                }
+                Text(
+                    "Nhập sẽ thêm vào danh sách hiện có; nhắc lịch trùng sẽ được bỏ qua.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = cs.onSurfaceVariant,
+                )
+            }
         }
 
         if (!notificationsAllowed) {
