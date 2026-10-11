@@ -30,6 +30,8 @@ data class Reminder(
     val hour: Int = 7,
     val minute: Int = 0,
     val enabled: Boolean = true,
+    /** Đổ chuông và rung liên tục như báo thức (thay vì chỉ hiện thông báo). */
+    val alarm: Boolean = false,
 ) {
     val isLunar: Boolean get() = calendar == CalendarType.LUNAR
 
@@ -54,6 +56,7 @@ data class Reminder(
 
     fun alertText(): String {
         val time = "%02d:%02d".format(hour, minute)
-        return if (beforeDays == 0) "Báo $time đúng ngày" else "Báo $time, trước $beforeDays ngày"
+        val base = if (beforeDays == 0) "Báo $time đúng ngày" else "Báo $time, trước $beforeDays ngày"
+        return if (alarm) "$base · đổ chuông" else base
     }
 }

@@ -14,12 +14,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.outlined.Alarm
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -33,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -40,6 +43,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import vn.itdvietnam.lichamduong.lunar.CanChi
+import vn.itdvietnam.lichamduong.reminder.AlarmService
 import vn.itdvietnam.lichamduong.reminder.CalendarType
 import vn.itdvietnam.lichamduong.reminder.Recurrence
 import vn.itdvietnam.lichamduong.reminder.Reminder
@@ -64,6 +68,7 @@ fun ReminderEditScreen(
 ) {
     var r by remember(initial) { mutableStateOf(initial) }
     val cs = MaterialTheme.colorScheme
+    val context = LocalContext.current
     val lunar = r.calendar == CalendarType.LUNAR
     val maxDay = when {
         lunar -> 30
@@ -211,6 +216,38 @@ fun ReminderEditScreen(
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     NumberStepper("Giờ", "%02d".format(r.hour), { r = r.copy(hour = wrap(r.hour + 1, 0, 23)) }, { r = r.copy(hour = wrap(r.hour - 1, 0, 23)) }, Modifier.weight(1f))
                     NumberStepper("Phút", "%02d".format(r.minute), { r = r.copy(minute = (r.minute + 15) % 60) }, { r = r.copy(minute = (r.minute + 45) % 60) }, Modifier.weight(1f))
+                }
+            }
+
+            Surface(shape = RoundedCornerShape(18.dp), color = cs.surfaceVariant, modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Outlined.Alarm, contentDescription = null, tint = cs.primary)
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            "Đổ chuông như báo thức",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Switch(checked = r.alarm, onCheckedChange = { r = r.copy(alarm = it) })
+                    }
+                    Text(
+                        if (r.alarm) {
+                            "Đến giờ, điện thoại đổ chuông và rung liên tục, hiện màn hình chuông kể cả khi đang khoá, " +
+                                "cho đến khi bạn bấm Tắt hoặc Báo lại ${AlarmService.SNOOZE_MINUTES} phút. " +
+                                "Chuông kêu theo âm lượng báo thức của máy, kể cả khi máy để im lặng; tự tắt sau ${AlarmService.RING_MINUTES} phút."
+                        } else {
+                            "Đang tắt: chỉ hiện thông báo kèm âm báo thông thường."
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = cs.onSurfaceVariant,
+                    )
+                    if (r.alarm) {
+                        OutlinedButton(onClick = { AlarmService.preview(context) }) {
+                            Text("Nghe thử chuông", fontWeight = FontWeight.SemiBold)
+                        }
+                    }
                 }
             }
 

@@ -29,8 +29,18 @@ class ReminderReceiver : BroadcastReceiver() {
         val date = intent.getStringExtra(ReminderScheduler.EXTRA_DATE)
             ?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
             ?: LocalDate.now()
-        if (reminder.enabled) ReminderNotifications.show(context, reminder, date)
-        ReminderScheduler(context).schedule(reminder)
+        val isSnooze = intent.getBooleanExtra(ReminderScheduler.EXTRA_SNOOZE, false)
+        if (reminder.enabled) {
+            if (reminder.alarm) {
+                // Đổ chuông như báo thức; nếu máy không cho chạy chuông thì vẫn hiện thông báo
+                val started = runCatching { AlarmService.start(context, reminder.id, date) }.isSuccess
+                if (!started) ReminderNotifications.show(context, reminder, date)
+            } else {
+                ReminderNotifications.show(context, reminder, date)
+            }
+        }
+        // Lần báo lại không đặt lịch lần sau (lịch lần sau đã được đặt khi báo lần đầu)
+        if (!isSnooze) ReminderScheduler(context).schedule(reminder)
     }
 }
 
@@ -43,13 +53,41 @@ class BootReceiver : BroadcastReceiver() {
 
 object ReminderNotifications {
     const val CHANNEL_ID = "nhac_lich"
+    const val ALARM_CHANNEL_ID = "chuong_bao_thuc"
 
     fun createChannel(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(CHANNEL_ID, "Nhắc lịch", NotificationManager.IMPORTANCE_HIGH)
             channel.description = "Thông báo nhắc lịch theo âm lịch và dương lịch"
-            context.getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+            // Kênh chuông báo thức: âm thanh do AlarmService phát (để kêu cả khi máy im lặng), kênh không tự phát tiếng
+            val alarm = NotificationChannel(ALARM_CHANNEL_ID, "Chuông báo thức", NotificationManager.IMPORTANCE_HIGH)
+            alarm.description = "Nhắc lịch đổ chuông và rung như báo thức"
+            alarm.setSound(null, null)
+            alarm.enableVibration(false)
+            alarm.lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
+            context.getSystemService(NotificationManager::class.java).createNotificationChannels(listOf(channel, alarm))
         }
+    }
+
+    /** Chuông đã kêu hết thời gian mà không ai tắt: để lại thông báo "đã lỡ". */
+    @SuppressLint("MissingPermission")
+    fun showMissed(context: Context, reminder: Reminder, date: LocalDate) {
+        if (!canNotify(context)) return
+        val info = DayInfo.of(date)
+        val open = PendingIntent.getActivity(
+            context, reminder.id.toInt(),
+            Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_stat_moon)
+            .setContentTitle("Đã lỡ chuông: " + reminder.title)
+            .setContentText("${info.weekday}, ${info.solarText} (${CanChi.lunarShort(info.lunar)} âm lịch)")
+            .setContentIntent(open)
+            .setAutoCancel(true)
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .build()
+        NotificationManagerCompat.from(context).notify(reminder.id.toInt(), notification)
     }
 
     fun canNotify(context: Context): Boolean =

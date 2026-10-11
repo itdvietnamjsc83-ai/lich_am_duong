@@ -75,7 +75,7 @@
     if (r.rep === 'year') return r.cal === 'lunar' ? 'Ngày ' + r.d + ' tháng ' + L.MONTH[r.m] + ' ' + cal + ' · Hằng năm' : 'Ngày ' + r.d + '/' + r.m + ' ' + cal + ' · Hằng năm';
     return r.cal === 'lunar' ? 'Ngày ' + r.d + ' tháng ' + L.MONTH[r.m] + ' năm ' + r.y + ' ' + cal : 'Ngày ' + r.d + '/' + r.m + '/' + r.y;
   }
-  function alertText(r) { return 'Báo ' + pad(r.hour) + ':' + pad(r.minute) + (r.before ? ', trước ' + r.before + ' ngày' : ' đúng ngày'); }
+  function alertText(r) { return 'Báo ' + pad(r.hour) + ':' + pad(r.minute) + (r.before ? ', trước ' + r.before + ' ngày' : ' đúng ngày') + (r.alarm ? ' · đổ chuông' : ''); }
   function maxDay(r) {
     if (r.cal === 'lunar') return 30;
     if (r.rep === 'month') return 31;
@@ -269,6 +269,11 @@
     if (lunar) h += '<div class="note">' + I.info + '<div>Tháng âm thiếu (29 ngày) sẽ nhắc vào ngày 29 nếu bạn chọn ngày 30.' + (r.rep === 'year' ? '<br>Năm có tháng nhuận trùng tháng đã chọn: nhắc ở tháng chính, không nhắc lại ở tháng nhuận.' : '') + '</div></div>';
     h += '</div><div class="stack-s"><div class="label">Nhắc trước</div>' + chips([[0, 'Đúng ngày'], [1, 'Trước 1 ngày'], [3, 'Trước 3 ngày'], [7, 'Trước 7 ngày']], r.before, 'ed-before') + '</div>' +
       '<div class="stack-s"><div class="label">Giờ báo</div><div class="steppers">' + stepper('Giờ', pad(r.hour), 'ed-step', 'hour') + stepper('Phút', pad(r.minute), 'ed-step', 'minute') + '</div></div>' +
+      '<section class="card"><div class="row"><span class="t1" style="flex:1">Đổ chuông như báo thức</span>' +
+      '<button class="switch" role="switch" aria-checked="' + !!r.alarm + '" aria-label="Đổ chuông như báo thức" data-act="ed-alarm"><span></span></button></div>' +
+      '<div class="mut" style="line-height:1.5">' + (r.alarm
+        ? 'Trên <b>Android</b>: đến giờ điện thoại đổ chuông và rung liên tục, hiện màn hình chuông kể cả khi khoá máy, đến khi bấm Tắt hoặc Báo lại.<br>Trên <b>iPhone</b>: Apple không cho ứng dụng web đổ chuông như Đồng hồ; khi thêm vào ứng dụng Lịch, nhắc này có thêm một lần báo đúng giờ. Tuỳ chọn được giữ khi chuyển sang máy Android.'
+        : 'Đang tắt: chỉ hiện thông báo kèm âm báo thông thường.') + '</div></section>' +
       '<section class="card" aria-live="polite"><h2 class="t1" style="margin:0;font-size:0.95rem">Các lần nhắc sắp tới</h2>' +
       (occ.length ? occ.map(function (j) {
         var s = L.jdToDate(j), a = L.jdToDate(j - r.before);
@@ -372,7 +377,7 @@
   }
 
   function newReminder(cal, d, m, y, rep) {
-    S.editing = { id: 0, title: '', cal: cal || 'lunar', rep: rep || 'year', d: d || 1, m: m || 1, y: y || L.jdToDate(todayJd()).y, extra: [], before: 1, hour: 7, minute: 0, on: true };
+    S.editing = { id: 0, title: '', cal: cal || 'lunar', rep: rep || 'year', d: d || 1, m: m || 1, y: y || L.jdToDate(todayJd()).y, extra: [], before: 1, hour: 7, minute: 0, on: true, alarm: false };
     S.dest = 'reminders';
   }
 
@@ -388,7 +393,8 @@
         'DTSTART:' + icsDate(j, r.hour, r.minute), 'DTEND:' + icsDate(j, Math.min(23, Math.floor(end / 60)), end >= 24 * 60 ? 59 : end % 60),
         'SUMMARY:' + icsEscape(r.title), 'DESCRIPTION:' + icsEscape(L.lunarText(l) + ' âm lịch · ' + ruleText(r)),
         'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' + icsEscape(r.title), 'TRIGGER:' + (r.before ? '-P' + r.before + 'D' : 'PT0M'), 'END:VALARM',
-        'END:VEVENT'].join('\r\n');
+        (r.alarm && r.before ? 'BEGIN:VALARM\r\nACTION:AUDIO\r\nTRIGGER:PT0M\r\nEND:VALARM' : null),
+        'END:VEVENT'].filter(Boolean).join('\r\n');
     });
   }
   function exportIcs(list, name) {
@@ -414,7 +420,7 @@
     var data = {
       app: 'lich-am-duong', format: 1, exportedAt: new Date().toISOString(),
       reminders: reminders.map(function (r) {
-        return { title: r.title, cal: r.cal, rep: r.rep, d: r.d, m: r.m, y: r.y, extra: r.extra || [], before: r.before, hour: r.hour, minute: r.minute, on: r.on };
+        return { title: r.title, cal: r.cal, rep: r.rep, d: r.d, m: r.m, y: r.y, extra: r.extra || [], before: r.before, hour: r.hour, minute: r.minute, on: r.on, alarm: !!r.alarm };
       })
     };
     var s = L.jdToDate(todayJd()), name = 'lich-am-duong-sao-luu-' + s.y + pad(s.m) + pad(s.d) + '.json';
@@ -439,7 +445,7 @@
         d: clamp(parseInt(x.d, 10) || 1, 1, x.cal === 'lunar' ? 30 : 31), m: clamp(parseInt(x.m, 10) || 1, 1, 12), y: clamp(parseInt(x.y, 10) || 2026, 1900, 2100),
         extra: (Array.isArray(x.extra) ? x.extra : []).map(function (v) { return clamp(parseInt(v, 10) || 1, 1, 31); }).slice(0, 1),
         before: [0, 1, 3, 7].indexOf(+x.before) >= 0 ? +x.before : 0,
-        hour: clamp(parseInt(x.hour, 10) || 0, 0, 23), minute: clamp(parseInt(x.minute, 10) || 0, 0, 59), on: x.on !== false
+        hour: clamp(parseInt(x.hour, 10) || 0, 0, 23), minute: clamp(parseInt(x.minute, 10) || 0, 0, 59), on: x.on !== false, alarm: x.alarm === true
       };
       var k = backupKey(r);
       if (keys.indexOf(k) >= 0) { skipped++; return; }
@@ -492,6 +498,7 @@
     'ed-cal': function (a) { S.editing.cal = a; render(); },
     'ed-rep': function (a) { S.editing.rep = a; render(); },
     'ed-before': function (a) { S.editing.before = +a; render(); },
+    'ed-alarm': function () { S.editing.alarm = !S.editing.alarm; render(); },
     'ed-extra': function () { var e = S.editing; e.extra = (e.extra && e.extra.length) ? [] : [e.d === 15 ? 1 : 15]; render(); },
     'ed-step': function (a) {
       var p = a.split(':'), f = p[0], n = +p[1], e = S.editing, md = maxDay(e);

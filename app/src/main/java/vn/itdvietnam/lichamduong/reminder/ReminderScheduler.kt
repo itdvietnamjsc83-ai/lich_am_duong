@@ -19,9 +19,37 @@ class ReminderScheduler(private val context: Context) {
         val next = Recurrence.nextAlarm(reminder, LocalDateTime.now()) ?: return
         val triggerAt = next.second.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         val pending = pendingIntent(reminder.id, next.first)
+        setAlarm(triggerAt, pending, reminder.alarm)
+    }
+
+    /** Báo lại sau [minutes] phút cho lần nhắc ngày [date] (dùng khi bấm "Báo lại" trên màn hình chuông). */
+    fun snooze(reminder: Reminder, date: LocalDate, minutes: Int) {
+        val triggerAt = System.currentTimeMillis() + minutes * 60_000L
+        val intent = Intent(context, ReminderReceiver::class.java)
+            .setAction(ACTION_REMIND)
+            .putExtra(EXTRA_ID, reminder.id)
+            .putExtra(EXTRA_DATE, date.toString())
+            .putExtra(EXTRA_SNOOZE, true)
+        val pending = PendingIntent.getBroadcast(
+            context,
+            reminder.id.toInt() + SNOOZE_REQUEST_OFFSET,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        setAlarm(triggerAt, pending, reminder.alarm)
+    }
+
+    private fun setAlarm(triggerAt: Long, pending: PendingIntent, alarmClock: Boolean) {
         val canExact = Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarmManager.canScheduleExactAlarms()
         try {
-            if (canExact) {
+            if (canExact && alarmClock) {
+                val show = PendingIntent.getActivity(
+                    context, 0,
+                    Intent(context, vn.itdvietnam.lichamduong.MainActivity::class.java),
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                )
+                alarmManager.setAlarmClock(AlarmManager.AlarmClockInfo(triggerAt, show), pending)
+            } else if (canExact) {
                 alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pending)
             } else {
                 alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pending)
@@ -33,6 +61,12 @@ class ReminderScheduler(private val context: Context) {
 
     fun cancel(id: Long) {
         alarmManager.cancel(pendingIntent(id, null))
+        val snooze = PendingIntent.getBroadcast(
+            context, id.toInt() + SNOOZE_REQUEST_OFFSET,
+            Intent(context, ReminderReceiver::class.java).setAction(ACTION_REMIND),
+            PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE,
+        )
+        if (snooze != null) alarmManager.cancel(snooze)
     }
 
     private fun pendingIntent(id: Long, date: LocalDate?): PendingIntent {
@@ -52,5 +86,7 @@ class ReminderScheduler(private val context: Context) {
         const val ACTION_REMIND = "vn.itdvietnam.lichamduong.action.REMIND"
         const val EXTRA_ID = "reminder_id"
         const val EXTRA_DATE = "occurrence_date"
+        const val EXTRA_SNOOZE = "snooze"
+        private const val SNOOZE_REQUEST_OFFSET = 1_000_000
     }
 }

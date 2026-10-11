@@ -4,4 +4,7 @@
     <style name="Theme.LichAmDuong" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">@android:color/white</item>
     </style>
+    <style name="Theme.LichAmDuong.Alarm" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@android:color/black</item>
+    </style>
 </resources>

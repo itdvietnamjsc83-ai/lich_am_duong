@@ -36,6 +36,11 @@ Cả hai bản đều được GitHub Actions tự build và tự cập nhật m
   - Xem trước 4 lần nhắc kế tiếp ngay khi đang tạo.
   - Hai quy tắc riêng cho âm lịch: tháng thiếu nhắc vào ngày 29; năm có tháng nhuận chỉ nhắc ở tháng chính.
   - Tự đặt lại lịch báo sau khi khởi động máy, đổi giờ hoặc cập nhật ứng dụng.
+- **Đổ chuông như báo thức** (tuỳ chọn riêng cho từng nhắc lịch, bản Android):
+  - Đến giờ, điện thoại đổ chuông và rung liên tục, hiện màn hình chuông kể cả khi đang khoá.
+  - Có hai nút **Tắt chuông** và **Báo lại sau 10 phút**. Không ai tắt thì chuông tự tắt sau 5 phút và để lại thông báo "Đã lỡ chuông".
+  - Chuông kêu theo âm lượng báo thức của máy, nên vẫn kêu khi máy để im lặng. Trong trình soạn nhắc có nút **Nghe thử chuông**.
+  - Trên iPhone, Apple không cho ứng dụng web đổ chuông như ứng dụng Đồng hồ. Khi thêm vào ứng dụng Lịch, nhắc có bật tuỳ chọn này được thêm một lần báo đúng giờ.
 - **Sao lưu & chuyển máy**: vào *Cài đặt › Sao lưu & chuyển máy*.
   - **Xuất file sao lưu**: tạo file `.json` chứa toàn bộ nhắc lịch. Lưu file vào Google Drive, iCloud, Zalo hoặc máy tính.
   - **Nhập từ file**: trên máy mới, mở file đó. Nhắc lịch được thêm vào danh sách hiện có, nhắc trùng tự bỏ qua.

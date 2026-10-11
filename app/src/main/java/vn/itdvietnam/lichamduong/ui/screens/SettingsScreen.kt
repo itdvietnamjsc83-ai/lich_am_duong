@@ -1,5 +1,11 @@
 package vn.itdvietnam.lichamduong.ui.screens
 
+import android.app.AlarmManager
+import android.app.NotificationManager
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -28,17 +34,24 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import vn.itdvietnam.lichamduong.BuildConfig
 import vn.itdvietnam.lichamduong.R
 import vn.itdvietnam.lichamduong.settings.TextSize
@@ -134,6 +147,8 @@ fun SettingsScreen(
             }
         }
 
+        AlarmPermissionCard()
+
         if (!notificationsAllowed) {
             Surface(shape = RoundedCornerShape(18.dp), color = cs.primaryContainer, modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -197,6 +212,45 @@ fun SettingsScreen(
             modifier = Modifier.fillMaxWidth(),
         )
         Spacer(Modifier.height(8.dp))
+    }
+}
+
+/** Nhắc cấp quyền cần cho chuông báo thức (chỉ hiện khi máy đang chặn). */
+@Composable
+private fun AlarmPermissionCard() {
+    val context = LocalContext.current
+    var tick by remember { mutableIntStateOf(0) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { tick++ }
+    val needExact = remember(tick) {
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+            !context.getSystemService(AlarmManager::class.java).canScheduleExactAlarms()
+    }
+    val needFullScreen = remember(tick) {
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE &&
+            !context.getSystemService(NotificationManager::class.java).canUseFullScreenIntent()
+    }
+    if (!needExact && !needFullScreen) return
+    val cs = MaterialTheme.colorScheme
+    fun open(action: String) {
+        runCatching {
+            context.startActivity(Intent(action, Uri.parse("package:" + context.packageName)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }
+    }
+    Surface(shape = RoundedCornerShape(18.dp), color = cs.primaryContainer, modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Cấp quyền cho chuông báo thức", fontWeight = FontWeight.Bold, color = cs.onPrimaryContainer)
+            Text(
+                "Để nhắc lịch đổ chuông đúng giờ và hiện màn hình chuông khi máy đang khoá, hãy cho phép các quyền dưới đây.",
+                style = MaterialTheme.typography.bodySmall,
+                color = cs.onPrimaryContainer,
+            )
+            if (needExact) {
+                Button(onClick = { open(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM) }) { Text("Cho phép báo đúng giờ") }
+            }
+            if (needFullScreen) {
+                Button(onClick = { open(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT) }) { Text("Cho phép hiện chuông toàn màn hình") }
+            }
+        }
     }
 }
 

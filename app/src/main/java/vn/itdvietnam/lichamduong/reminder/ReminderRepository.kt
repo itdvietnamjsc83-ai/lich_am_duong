@@ -61,7 +61,8 @@ class ReminderRepository private constructor(context: Context) {
                     .put("before", r.beforeDays)
                     .put("hour", r.hour)
                     .put("minute", r.minute)
-                    .put("on", r.enabled),
+                    .put("on", r.enabled)
+                    .put("alarm", r.alarm),
             )
         }
         return JSONObject()
@@ -104,6 +105,7 @@ class ReminderRepository private constructor(context: Context) {
                 hour = o.optInt("hour", 7).coerceIn(0, 23),
                 minute = o.optInt("minute", 0).coerceIn(0, 59),
                 enabled = o.optBoolean("on", true),
+                alarm = o.optBoolean("alarm", false),
             )
             val key = backupKey(reminder)
             if (key in keys) {
@@ -173,6 +175,7 @@ class ReminderRepository private constructor(context: Context) {
         .put("hour", r.hour)
         .put("minute", r.minute)
         .put("enabled", r.enabled)
+        .put("alarm", r.alarm)
 
     private fun fromJson(o: JSONObject): Reminder {
         val extra = o.optJSONArray("extraDays")
@@ -189,6 +192,7 @@ class ReminderRepository private constructor(context: Context) {
             hour = o.optInt("hour", 7),
             minute = o.optInt("minute", 0),
             enabled = o.optBoolean("enabled", true),
+            alarm = o.optBoolean("alarm", false),
         )
     }
 
