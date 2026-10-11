@@ -62,7 +62,11 @@ class ReminderRepository private constructor(context: Context) {
                     .put("hour", r.hour)
                     .put("minute", r.minute)
                     .put("on", r.enabled)
-                    .put("alarm", r.alarm),
+                    .put("alarm", r.alarm)
+                    .put("alarmBefore", r.alarmBeforeDays)
+                    .put("alarmHour", r.alarmHour)
+                    .put("alarmMinute", r.alarmMinute)
+                    .put("snooze", r.snoozeMinutes),
             )
         }
         return JSONObject()
@@ -91,7 +95,9 @@ class ReminderRepository private constructor(context: Context) {
                 continue
             }
             val extra = o.optJSONArray("extra")
-            val before = o.optInt("before", 0)
+            val before = o.optInt("before", 0).coerceIn(0, 30)
+            val hour = o.optInt("hour", 7).coerceIn(0, 23)
+            val minute = o.optInt("minute", 0).coerceIn(0, 59)
             val reminder = Reminder(
                 id = 0L,
                 title = o.optString("title", "Nhắc lịch").take(120).ifBlank { "Nhắc lịch" },
@@ -101,11 +107,15 @@ class ReminderRepository private constructor(context: Context) {
                 month = o.optInt("m", 1).coerceIn(1, 12),
                 year = o.optInt("y", 2026).coerceIn(1900, 2100),
                 extraDays = if (extra == null) emptyList() else (0 until minOf(extra.length(), 1)).map { extra.optInt(it, 1).coerceIn(1, 31) },
-                beforeDays = if (before in setOf(0, 1, 3, 7)) before else 0,
-                hour = o.optInt("hour", 7).coerceIn(0, 23),
-                minute = o.optInt("minute", 0).coerceIn(0, 59),
+                beforeDays = before,
+                hour = hour,
+                minute = minute,
                 enabled = o.optBoolean("on", true),
                 alarm = o.optBoolean("alarm", false),
+                alarmBeforeDays = o.optInt("alarmBefore", before).coerceIn(0, 30),
+                alarmHour = o.optInt("alarmHour", hour).coerceIn(0, 23),
+                alarmMinute = o.optInt("alarmMinute", minute).coerceIn(0, 59),
+                snoozeMinutes = o.optInt("snooze", 10).coerceIn(1, 60),
             )
             val key = backupKey(reminder)
             if (key in keys) {
@@ -176,6 +186,10 @@ class ReminderRepository private constructor(context: Context) {
         .put("minute", r.minute)
         .put("enabled", r.enabled)
         .put("alarm", r.alarm)
+        .put("alarmBeforeDays", r.alarmBeforeDays)
+        .put("alarmHour", r.alarmHour)
+        .put("alarmMinute", r.alarmMinute)
+        .put("snoozeMinutes", r.snoozeMinutes)
 
     private fun fromJson(o: JSONObject): Reminder {
         val extra = o.optJSONArray("extraDays")
@@ -193,6 +207,10 @@ class ReminderRepository private constructor(context: Context) {
             minute = o.optInt("minute", 0),
             enabled = o.optBoolean("enabled", true),
             alarm = o.optBoolean("alarm", false),
+            alarmBeforeDays = o.optInt("alarmBeforeDays", o.optInt("beforeDays", 0)).coerceIn(0, 30),
+            alarmHour = o.optInt("alarmHour", o.optInt("hour", 7)).coerceIn(0, 23),
+            alarmMinute = o.optInt("alarmMinute", o.optInt("minute", 0)).coerceIn(0, 59),
+            snoozeMinutes = o.optInt("snoozeMinutes", 10).coerceIn(1, 60),
         )
     }
 

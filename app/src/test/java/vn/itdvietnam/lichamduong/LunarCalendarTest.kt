@@ -85,5 +85,11 @@ class LunarCalendarTest {
         assertEquals(LocalDate.of(2027, 1, 5), Recurrence.nextOccurrences(cuoi, today, 1)[0])
         val alarm = Recurrence.nextAlarm(gio.copy(beforeDays = 3, hour = 7), LocalDateTime.of(2026, 10, 10, 9, 0))
         assertEquals(LocalDateTime.of(2026, 12, 13, 7, 0), alarm?.second)
+        // Giờ đổ chuông riêng, chọn tự do: 5:37 sáng, trước 1 ngày; thông báo 19:45 trước 3 ngày
+        val ring = gio.copy(beforeDays = 3, hour = 19, minute = 45, alarm = true, alarmBeforeDays = 1, alarmHour = 5, alarmMinute = 37)
+        assertEquals(LocalDateTime.of(2026, 12, 15, 5, 37), Recurrence.nextRing(ring, LocalDateTime.of(2026, 10, 10, 9, 0))?.second)
+        assertEquals(LocalDateTime.of(2026, 12, 13, 19, 45), Recurrence.nextAlarm(ring, LocalDateTime.of(2026, 10, 10, 9, 0))?.second)
+        assertEquals(null, Recurrence.nextRing(gio, LocalDateTime.of(2026, 10, 10, 9, 0)))
+        assertEquals(true, ring.copy(alarmBeforeDays = 3, alarmHour = 19, alarmMinute = 45).ringReplacesNotification)
     }
 }

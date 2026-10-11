@@ -170,3 +170,12 @@ a { color: var(--acc); }
   .pane.left { flex: 0 0 50%; }
   .wrap { padding: 8px 16px 24px; }
 }
+
+/* Chọn mốc báo tự do */
+.dt { display: flex; gap: 8px; }
+.dt-days, .dt-time { flex: 1 1 0; min-width: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 16px; padding: 8px 6px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.dt .lab { font-size: 0.72rem; font-weight: 600; color: var(--muted); }
+.dt-v { min-width: 66px; text-align: center; font-size: 0.9rem; line-height: 1.2; }
+.sq { width: 40px; height: 40px; border-radius: 12px; background: var(--surf); font-size: 1.25rem; font-weight: 700; }
+.time-in { font-family: var(--num); font-size: 1.45rem; max-width: 100%; box-sizing: border-box; font-weight: 700; border: none; background: transparent; color: var(--text); text-align: center; width: 100%; min-height: 48px; padding: 0; }
+.time-in::-webkit-date-and-time-value { text-align: center; }

@@ -124,7 +124,7 @@ private fun AlarmScreen(ring: AlarmService.RingInfo, onSnooze: () -> Unit, onSto
                 onClick = onSnooze,
                 modifier = Modifier.fillMaxWidth().height(64.dp),
                 shape = RoundedCornerShape(20.dp),
-            ) { Text("Báo lại sau ${AlarmService.SNOOZE_MINUTES} phút", fontSize = 18.sp, fontWeight = FontWeight.SemiBold) }
+            ) { Text("Báo lại sau ${ring.snoozeMinutes} phút", fontSize = 18.sp, fontWeight = FontWeight.SemiBold) }
             Button(
                 onClick = onStop,
                 modifier = Modifier.fillMaxWidth().height(76.dp),

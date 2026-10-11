@@ -30,8 +30,9 @@ class ReminderReceiver : BroadcastReceiver() {
             ?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
             ?: LocalDate.now()
         val isSnooze = intent.getBooleanExtra(ReminderScheduler.EXTRA_SNOOZE, false)
+        val isRing = isSnooze || intent.getStringExtra(ReminderScheduler.EXTRA_KIND) == ReminderScheduler.KIND_RING
         if (reminder.enabled) {
-            if (reminder.alarm) {
+            if (isRing && reminder.alarm) {
                 // Đổ chuông như báo thức; nếu máy không cho chạy chuông thì vẫn hiện thông báo
                 val started = runCatching { AlarmService.start(context, reminder.id, date) }.isSuccess
                 if (!started) ReminderNotifications.show(context, reminder, date)

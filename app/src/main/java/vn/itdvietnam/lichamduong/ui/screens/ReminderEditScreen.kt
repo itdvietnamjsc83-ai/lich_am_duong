@@ -49,6 +49,7 @@ import vn.itdvietnam.lichamduong.reminder.Recurrence
 import vn.itdvietnam.lichamduong.reminder.Reminder
 import vn.itdvietnam.lichamduong.reminder.RepeatType
 import vn.itdvietnam.lichamduong.ui.components.ChoiceChips
+import vn.itdvietnam.lichamduong.ui.components.DayTimePicker
 import vn.itdvietnam.lichamduong.ui.components.NumberStepper
 import vn.itdvietnam.lichamduong.ui.components.SectionLabel
 import vn.itdvietnam.lichamduong.ui.components.SegmentedChoice
@@ -202,25 +203,25 @@ fun ReminderEditScreen(
             }
 
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                SectionLabel("Nhắc trước")
-                ChoiceChips(
-                    options = listOf(0, 1, 3, 7),
-                    selected = r.beforeDays,
-                    label = { if (it == 0) "Đúng ngày" else "Trước $it ngày" },
-                    onSelect = { r = r.copy(beforeDays = it) },
+                SectionLabel("Thông báo")
+                DayTimePicker(
+                    beforeDays = r.beforeDays,
+                    hour = r.hour,
+                    minute = r.minute,
+                    title = "Giờ thông báo",
+                    onBeforeDays = { r = r.copy(beforeDays = it) },
+                    onTime = { h, m -> r = r.copy(hour = h, minute = m) },
+                )
+                Text(
+                    if (r.ringReplacesNotification) "Trùng giờ chuông: chỉ đổ chuông, không hiện thêm thông báo."
+                    else "Chạm vào giờ để chọn trên mặt đồng hồ.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = cs.onSurfaceVariant,
                 )
             }
 
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                SectionLabel("Giờ báo")
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    NumberStepper("Giờ", "%02d".format(r.hour), { r = r.copy(hour = wrap(r.hour + 1, 0, 23)) }, { r = r.copy(hour = wrap(r.hour - 1, 0, 23)) }, Modifier.weight(1f))
-                    NumberStepper("Phút", "%02d".format(r.minute), { r = r.copy(minute = (r.minute + 15) % 60) }, { r = r.copy(minute = (r.minute + 45) % 60) }, Modifier.weight(1f))
-                }
-            }
-
             Surface(shape = RoundedCornerShape(18.dp), color = cs.surfaceVariant, modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Outlined.Alarm, contentDescription = null, tint = cs.primary)
                         Spacer(Modifier.width(10.dp))
@@ -230,20 +231,52 @@ fun ReminderEditScreen(
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.weight(1f),
                         )
-                        Switch(checked = r.alarm, onCheckedChange = { r = r.copy(alarm = it) })
+                        Switch(
+                            checked = r.alarm,
+                            onCheckedChange = { on ->
+                                // Lần đầu bật: lấy giờ chuông bằng giờ thông báo, sau đó chỉnh tự do
+                                r = if (on && !r.alarm && !initial.alarm) {
+                                    r.copy(alarm = true, alarmBeforeDays = r.beforeDays, alarmHour = r.hour, alarmMinute = r.minute)
+                                } else {
+                                    r.copy(alarm = on)
+                                }
+                            },
+                        )
                     }
-                    Text(
-                        if (r.alarm) {
-                            "Đến giờ, điện thoại đổ chuông và rung liên tục, hiện màn hình chuông kể cả khi đang khoá, " +
-                                "cho đến khi bạn bấm Tắt hoặc Báo lại ${AlarmService.SNOOZE_MINUTES} phút. " +
-                                "Chuông kêu theo âm lượng báo thức của máy, kể cả khi máy để im lặng; tự tắt sau ${AlarmService.RING_MINUTES} phút."
-                        } else {
-                            "Đang tắt: chỉ hiện thông báo kèm âm báo thông thường."
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = cs.onSurfaceVariant,
-                    )
-                    if (r.alarm) {
+                    if (!r.alarm) {
+                        Text(
+                            "Đang tắt: chỉ hiện thông báo. Bật để điện thoại đổ chuông và rung liên tục vào giờ bạn chọn, hiện cả khi đang khoá máy.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = cs.onSurfaceVariant,
+                        )
+                    } else {
+                        SectionLabel("Giờ đổ chuông (chọn tự do)")
+                        DayTimePicker(
+                            beforeDays = r.alarmBeforeDays,
+                            hour = r.alarmHour,
+                            minute = r.alarmMinute,
+                            title = "Giờ đổ chuông",
+                            onBeforeDays = { r = r.copy(alarmBeforeDays = it) },
+                            onTime = { h, m -> r = r.copy(alarmHour = h, alarmMinute = m) },
+                        )
+                        Text(
+                            "Đổ chuông lúc %02d:%02d".format(r.alarmHour, r.alarmMinute) +
+                                if (r.alarmBeforeDays == 0) " đúng ngày" else ", trước ${r.alarmBeforeDays} ngày",
+                            color = cs.primary,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        SectionLabel("Báo lại sau")
+                        ChoiceChips(
+                            options = listOf(5, 10, 15, 30),
+                            selected = r.snoozeMinutes,
+                            label = { "$it phút" },
+                            onSelect = { r = r.copy(snoozeMinutes = it) },
+                        )
+                        Text(
+                            "Chuông theo âm lượng báo thức, kêu cả khi máy im lặng; tự tắt sau ${AlarmService.RING_MINUTES} phút nếu không ai bấm.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = cs.onSurfaceVariant,
+                        )
                         OutlinedButton(onClick = { AlarmService.preview(context) }) {
                             Text("Nghe thử chuông", fontWeight = FontWeight.SemiBold)
                         }
@@ -264,7 +297,10 @@ fun ReminderEditScreen(
                         Text("Ngày đã chọn đã qua. Hãy chọn năm khác hoặc bật lặp lại.", color = cs.onSurfaceVariant)
                     }
                     preview.forEach { date ->
-                        val alarm = date.minusDays(r.beforeDays.toLong())
+                        fun at(before: Int, h: Int, m: Int): String {
+                            val d = date.minusDays(before.toLong())
+                            return "%02d:%02d".format(h, m) + " ngày ${d.dayOfMonth}/${d.monthValue}/${d.year}"
+                        }
                         Row(
                             Modifier
                                 .fillMaxWidth()
@@ -280,13 +316,21 @@ fun ReminderEditScreen(
                             Spacer(Modifier.width(12.dp))
                             Column {
                                 Text(solarWithWeekday(date) + " · " + lunarOf(date), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
-                                Text(
-                                    "Báo lúc %02d:%02d".format(r.hour, r.minute) +
-                                        (if (r.beforeDays > 0) " ngày ${alarm.dayOfMonth}/${alarm.monthValue}/${alarm.year}" else " đúng ngày") +
-                                        " · " + countdownText(date, today),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = cs.onSurfaceVariant,
-                                )
+                                if (!r.ringReplacesNotification) {
+                                    Text(
+                                        "Thông báo " + at(r.beforeDays, r.hour, r.minute) + " · " + countdownText(date, today),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = cs.onSurfaceVariant,
+                                    )
+                                }
+                                if (r.alarm) {
+                                    Text(
+                                        "Đổ chuông " + at(r.alarmBeforeDays, r.alarmHour, r.alarmMinute),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = cs.primary,
+                                    )
+                                }
                             }
                         }
                     }

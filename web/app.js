@@ -58,6 +58,11 @@
     reminders = [{ id: 1, title: 'Mùng 1 & Rằm', cal: 'lunar', rep: 'month', d: 1, m: 1, y: ts.y, extra: [15], before: 0, hour: 6, minute: 0, on: true }];
     store.set('reminders', reminders);
   }
+  // Dữ liệu cũ chưa có giờ chuông riêng: lấy theo giờ thông báo
+  reminders.forEach(function (r) {
+    if (r.aHour == null) { r.aBefore = r.before; r.aHour = r.hour; r.aMinute = r.minute; }
+    if (!r.snooze) r.snooze = 10;
+  });
   function saveReminders() { store.set('reminders', reminders); }
   var SIZES = { md: 1.0, lg: 1.1, xl: 1.25 };
   function applyPrefs() {
@@ -75,7 +80,21 @@
     if (r.rep === 'year') return r.cal === 'lunar' ? 'Ngày ' + r.d + ' tháng ' + L.MONTH[r.m] + ' ' + cal + ' · Hằng năm' : 'Ngày ' + r.d + '/' + r.m + ' ' + cal + ' · Hằng năm';
     return r.cal === 'lunar' ? 'Ngày ' + r.d + ' tháng ' + L.MONTH[r.m] + ' năm ' + r.y + ' ' + cal : 'Ngày ' + r.d + '/' + r.m + '/' + r.y;
   }
-  function alertText(r) { return 'Báo ' + pad(r.hour) + ':' + pad(r.minute) + (r.before ? ', trước ' + r.before + ' ngày' : ' đúng ngày') + (r.alarm ? ' · đổ chuông' : ''); }
+  function atText(b, h, m) { return pad(h) + ':' + pad(m) + (b ? ', trước ' + b + ' ngày' : ' đúng ngày'); }
+  function ringSame(r) { return !!r.alarm && (r.aBefore | 0) === (r.before | 0) && r.aHour === r.hour && r.aMinute === r.minute; }
+  function alertText(r) {
+    if (ringSame(r)) return 'Đổ chuông ' + atText(r.aBefore, r.aHour, r.aMinute);
+    return 'Thông báo ' + atText(r.before, r.hour, r.minute) + (r.alarm ? ' · Chuông ' + atText(r.aBefore, r.aHour, r.aMinute) : '');
+  }
+  /* Ô chọn mốc báo tự do: số ngày trước (0–30) + giờ:phút bất kỳ (ô chọn giờ của máy) */
+  function dayTime(prefix, b, h, m, label) {
+    return '<div class="dt"><div class="dt-days"><span class="lab">Ngày báo</span><div class="row" style="gap:6px">' +
+      '<button class="sq" data-act="ed-days" data-arg="' + prefix + ':-1" aria-label="Bớt một ngày">−</button>' +
+      '<b class="dt-v">' + (b ? 'Trước<br>' + b + ' ngày' : 'Đúng<br>ngày') + '</b>' +
+      '<button class="sq" data-act="ed-days" data-arg="' + prefix + ':1" aria-label="Thêm một ngày">+</button></div></div>' +
+      '<label class="dt-time"><span class="lab">' + esc(label) + '</span>' +
+      '<input type="time" class="time-in" data-time="' + prefix + '" value="' + pad(h) + ':' + pad(m) + '" aria-label="' + esc(label) + '"></label></div>';
+  }
   function maxDay(r) {
     if (r.cal === 'lunar') return 30;
     if (r.rep === 'month') return 31;
@@ -267,18 +286,23 @@
     }
     h += '<div style="color:var(--acc);font-weight:600">' + esc(ruleText(rr)) + '</div>';
     if (lunar) h += '<div class="note">' + I.info + '<div>Tháng âm thiếu (29 ngày) sẽ nhắc vào ngày 29 nếu bạn chọn ngày 30.' + (r.rep === 'year' ? '<br>Năm có tháng nhuận trùng tháng đã chọn: nhắc ở tháng chính, không nhắc lại ở tháng nhuận.' : '') + '</div></div>';
-    h += '</div><div class="stack-s"><div class="label">Nhắc trước</div>' + chips([[0, 'Đúng ngày'], [1, 'Trước 1 ngày'], [3, 'Trước 3 ngày'], [7, 'Trước 7 ngày']], r.before, 'ed-before') + '</div>' +
-      '<div class="stack-s"><div class="label">Giờ báo</div><div class="steppers">' + stepper('Giờ', pad(r.hour), 'ed-step', 'hour') + stepper('Phút', pad(r.minute), 'ed-step', 'minute') + '</div></div>' +
+    h += '</div><div class="stack-s"><div class="label">Thông báo</div>' + dayTime('n', r.before, r.hour, r.minute, 'Giờ thông báo') +
+      '<div class="mut">' + (ringSame(r) ? 'Trùng giờ chuông: chỉ đổ chuông, không hiện thêm thông báo.' : 'Chạm vào giờ để chọn giờ, phút bất kỳ.') + '</div></div>' +
       '<section class="card"><div class="row"><span class="t1" style="flex:1">Đổ chuông như báo thức</span>' +
       '<button class="switch" role="switch" aria-checked="' + !!r.alarm + '" aria-label="Đổ chuông như báo thức" data-act="ed-alarm"><span></span></button></div>' +
-      '<div class="mut" style="line-height:1.5">' + (r.alarm
-        ? 'Trên <b>Android</b>: đến giờ điện thoại đổ chuông và rung liên tục, hiện màn hình chuông kể cả khi khoá máy, đến khi bấm Tắt hoặc Báo lại.<br>Trên <b>iPhone</b>: Apple không cho ứng dụng web đổ chuông như Đồng hồ; khi thêm vào ứng dụng Lịch, nhắc này có thêm một lần báo đúng giờ. Tuỳ chọn được giữ khi chuyển sang máy Android.'
-        : 'Đang tắt: chỉ hiện thông báo kèm âm báo thông thường.') + '</div></section>' +
+      (r.alarm
+        ? '<div class="label">Giờ đổ chuông (chọn tự do)</div>' + dayTime('a', r.aBefore, r.aHour, r.aMinute, 'Giờ đổ chuông') +
+          '<div style="color:var(--acc);font-weight:600">Đổ chuông lúc ' + esc(atText(r.aBefore, r.aHour, r.aMinute)) + '</div>' +
+          '<div class="label">Báo lại sau</div>' + chips([[5, '5 phút'], [10, '10 phút'], [15, '15 phút'], [30, '30 phút']], r.snooze || 10, 'ed-snooze') +
+          '<div class="mut" style="line-height:1.5">Trên <b>Android</b>: điện thoại đổ chuông và rung liên tục, hiện màn hình chuông kể cả khi khoá máy, đến khi bấm Tắt hoặc Báo lại.<br>Trên <b>iPhone</b>: Apple không cho ứng dụng web đổ chuông như Đồng hồ; khi thêm vào ứng dụng Lịch, giờ chuông thành một lần báo riêng. Tuỳ chọn được giữ khi chuyển sang máy Android.</div>'
+        : '<div class="mut" style="line-height:1.5">Đang tắt: chỉ hiện thông báo. Bật để điện thoại đổ chuông và rung liên tục vào giờ bạn chọn.</div>') + '</section>' +
       '<section class="card" aria-live="polite"><h2 class="t1" style="margin:0;font-size:0.95rem">Các lần nhắc sắp tới</h2>' +
       (occ.length ? occ.map(function (j) {
-        var s = L.jdToDate(j), a = L.jdToDate(j - r.before);
+        var s = L.jdToDate(j);
+        function at(b, h, m) { var a = L.jdToDate(j - (b | 0)); return pad(h) + ':' + pad(m) + ' ngày ' + a.d + '/' + a.m + '/' + a.y; }
         return '<div class="occ"><div class="dn"><b>' + s.d + '</b><span>th ' + s.m + '</span></div><div class="col"><span class="t2" style="font-weight:600">' + solarW(j) + ' · ' + lunarOf(j) + '</span>' +
-          '<span class="mut">Báo lúc ' + pad(r.hour) + ':' + pad(r.minute) + (r.before ? ' ngày ' + a.d + '/' + a.m + '/' + a.y : ' đúng ngày') + ' · ' + countdown(j) + '</span></div></div>';
+          (ringSame(r) ? '' : '<span class="mut">Thông báo ' + at(r.before, r.hour, r.minute) + ' · ' + countdown(j) + '</span>') +
+          (r.alarm ? '<span class="mut" style="color:var(--acc);font-weight:600">Đổ chuông ' + at(r.aBefore, r.aHour, r.aMinute) + '</span>' : '') + '</div></div>';
       }).join('') : '<div class="mut">Ngày đã chọn đã qua. Hãy chọn năm khác hoặc bật lặp lại.</div>') + '</section>' +
       '<button class="primary" data-act="ed-save">Lưu nhắc lịch</button></div>';
     return h;
@@ -377,13 +401,17 @@
   }
 
   function newReminder(cal, d, m, y, rep) {
-    S.editing = { id: 0, title: '', cal: cal || 'lunar', rep: rep || 'year', d: d || 1, m: m || 1, y: y || L.jdToDate(todayJd()).y, extra: [], before: 1, hour: 7, minute: 0, on: true, alarm: false };
+    S.editing = { id: 0, title: '', cal: cal || 'lunar', rep: rep || 'year', d: d || 1, m: m || 1, y: y || L.jdToDate(todayJd()).y, extra: [], before: 1, hour: 7, minute: 0, on: true, alarm: false, aBefore: 0, aHour: 7, aMinute: 0, snooze: 10 };
     S.dest = 'reminders';
   }
 
   // ---------- Xuất sang ứng dụng Lịch (iPhone/Android/Google) ----------
   function icsDate(jd, h, mi) { var s = L.jdToDate(jd); return s.y + pad(s.m) + pad(s.d) + 'T' + pad(h) + pad(mi) + '00'; }
   function icsEscape(s) { return String(s).replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n'); }
+  function ringTrigger(r) {
+    var mins = -(r.aBefore | 0) * 1440 + (r.aHour * 60 + r.aMinute) - (r.hour * 60 + r.minute);
+    return (mins < 0 ? '-' : '') + 'PT' + Math.abs(mins) + 'M';
+  }
   function icsEvents(r) {
     if (!r.on) return [];
     var count = r.rep === 'once' ? 1 : (r.rep === 'month' ? 24 * Math.max(1, 1 + (r.extra || []).length) : 20);
@@ -393,7 +421,7 @@
         'DTSTART:' + icsDate(j, r.hour, r.minute), 'DTEND:' + icsDate(j, Math.min(23, Math.floor(end / 60)), end >= 24 * 60 ? 59 : end % 60),
         'SUMMARY:' + icsEscape(r.title), 'DESCRIPTION:' + icsEscape(L.lunarText(l) + ' âm lịch · ' + ruleText(r)),
         'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' + icsEscape(r.title), 'TRIGGER:' + (r.before ? '-P' + r.before + 'D' : 'PT0M'), 'END:VALARM',
-        (r.alarm && r.before ? 'BEGIN:VALARM\r\nACTION:AUDIO\r\nTRIGGER:PT0M\r\nEND:VALARM' : null),
+        (r.alarm && !ringSame(r) ? 'BEGIN:VALARM\r\nACTION:AUDIO\r\nTRIGGER:' + ringTrigger(r) + '\r\nEND:VALARM' : null),
         'END:VEVENT'].filter(Boolean).join('\r\n');
     });
   }
@@ -420,7 +448,8 @@
     var data = {
       app: 'lich-am-duong', format: 1, exportedAt: new Date().toISOString(),
       reminders: reminders.map(function (r) {
-        return { title: r.title, cal: r.cal, rep: r.rep, d: r.d, m: r.m, y: r.y, extra: r.extra || [], before: r.before, hour: r.hour, minute: r.minute, on: r.on, alarm: !!r.alarm };
+        return { title: r.title, cal: r.cal, rep: r.rep, d: r.d, m: r.m, y: r.y, extra: r.extra || [], before: r.before, hour: r.hour, minute: r.minute, on: r.on, alarm: !!r.alarm,
+          alarmBefore: r.alarm ? (r.aBefore | 0) : r.before, alarmHour: r.alarm ? r.aHour : r.hour, alarmMinute: r.alarm ? r.aMinute : r.minute, snooze: r.snooze || 10 };
       })
     };
     var s = L.jdToDate(todayJd()), name = 'lich-am-duong-sao-luu-' + s.y + pad(s.m) + pad(s.d) + '.json';
@@ -444,9 +473,13 @@
         id: 0, title: String(x.title || 'Nhắc lịch').slice(0, 120), cal: x.cal, rep: x.rep,
         d: clamp(parseInt(x.d, 10) || 1, 1, x.cal === 'lunar' ? 30 : 31), m: clamp(parseInt(x.m, 10) || 1, 1, 12), y: clamp(parseInt(x.y, 10) || 2026, 1900, 2100),
         extra: (Array.isArray(x.extra) ? x.extra : []).map(function (v) { return clamp(parseInt(v, 10) || 1, 1, 31); }).slice(0, 1),
-        before: [0, 1, 3, 7].indexOf(+x.before) >= 0 ? +x.before : 0,
+        before: clamp(parseInt(x.before, 10) || 0, 0, 30),
         hour: clamp(parseInt(x.hour, 10) || 0, 0, 23), minute: clamp(parseInt(x.minute, 10) || 0, 0, 59), on: x.on !== false, alarm: x.alarm === true
       };
+      r.aBefore = x.alarmBefore != null ? clamp(parseInt(x.alarmBefore, 10) || 0, 0, 30) : r.before;
+      r.aHour = x.alarmHour != null ? clamp(parseInt(x.alarmHour, 10) || 0, 0, 23) : r.hour;
+      r.aMinute = x.alarmMinute != null ? clamp(parseInt(x.alarmMinute, 10) || 0, 0, 59) : r.minute;
+      r.snooze = [5, 10, 15, 30].indexOf(+x.snooze) >= 0 ? +x.snooze : 10;
       var k = backupKey(r);
       if (keys.indexOf(k) >= 0) { skipped++; return; }
       r.id = nextId++; reminders.push(r); keys.push(k); added++;
@@ -498,7 +531,17 @@
     'ed-cal': function (a) { S.editing.cal = a; render(); },
     'ed-rep': function (a) { S.editing.rep = a; render(); },
     'ed-before': function (a) { S.editing.before = +a; render(); },
-    'ed-alarm': function () { S.editing.alarm = !S.editing.alarm; render(); },
+    'ed-alarm': function () {
+      var e = S.editing;
+      // Lần đầu bật chuông: lấy giờ chuông bằng giờ thông báo, sau đó chỉnh tự do
+      if (!e.alarm && (e.aHour == null || (!e.id && !e._alarmSet))) { e.aBefore = e.before; e.aHour = e.hour; e.aMinute = e.minute; e._alarmSet = true; }
+      e.alarm = !e.alarm; render();
+    },
+    'ed-snooze': function (a) { S.editing.snooze = +a; render(); },
+    'ed-days': function (a) {
+      var p = a.split(':'), e = S.editing, k = p[0] === 'a' ? 'aBefore' : 'before';
+      e[k] = clamp((e[k] | 0) + (+p[1]), 0, 30); render();
+    },
     'ed-extra': function () { var e = S.editing; e.extra = (e.extra && e.extra.length) ? [] : [e.d === 15 ? 1 : 15]; render(); },
     'ed-step': function (a) {
       var p = a.split(':'), f = p[0], n = +p[1], e = S.editing, md = maxDay(e);
@@ -511,7 +554,7 @@
       render();
     },
     'ed-save': function () {
-      var e = S.editing; e.d = Math.min(e.d, maxDay(e)); e.title = (e.title || '').trim() || 'Nhắc lịch';
+      var e = S.editing; e.d = Math.min(e.d, maxDay(e)); e.title = (e.title || '').trim() || 'Nhắc lịch'; delete e._alarmSet;
       var isNew = !e.id;
       if (isNew) { e.id = reminders.reduce(function (m, x) { return Math.max(m, x.id); }, 0) + 1; reminders.push(e); }
       else reminders = reminders.map(function (x) { return x.id === e.id ? e : x; });
@@ -541,6 +584,12 @@
     if (fn) { e.preventDefault(); fn(el.getAttribute('data-arg')); }
   });
   app.addEventListener('change', function (e) {
+    var tk = e.target.getAttribute && e.target.getAttribute('data-time');
+    if (tk && S.editing && /^\d{2}:\d{2}/.test(e.target.value)) {
+      var hm = e.target.value.split(':').map(Number);
+      if (tk === 'a') { S.editing.aHour = hm[0]; S.editing.aMinute = hm[1]; } else { S.editing.hour = hm[0]; S.editing.minute = hm[1]; }
+      render(); return;
+    }
     if (e.target.id !== 'backup-file' || !e.target.files || !e.target.files[0]) return;
     var reader = new FileReader();
     reader.onload = function () {

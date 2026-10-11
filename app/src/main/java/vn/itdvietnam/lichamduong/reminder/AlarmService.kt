@@ -65,7 +65,7 @@ class AlarmService : Service() {
         }
         // Đang có chuông khác: dừng âm thanh cũ, chuyển sang nhắc mới
         stopSound()
-        val info = RingInfo(reminder.id, reminder.title, date, reminder.ruleText())
+        val info = RingInfo(reminder.id, reminder.title, date, reminder.ruleText(), reminder.snoozeMinutes)
         _ringing.value = info
 
         ServiceCompat.startForeground(
@@ -100,7 +100,7 @@ class AlarmService : Service() {
             .setOnlyAlertOnce(true)
             .setContentIntent(openAlarm)
             .setFullScreenIntent(openAlarm, true)
-            .addAction(0, "Báo lại $SNOOZE_MINUTES phút", servicePending(this, ACTION_SNOOZE, REQ_SNOOZE))
+            .addAction(0, "Báo lại ${info.snoozeMinutes} phút", servicePending(this, ACTION_SNOOZE, REQ_SNOOZE))
             .addAction(0, "Tắt chuông", servicePending(this, ACTION_STOP, REQ_STOP))
             .build()
     }
@@ -161,8 +161,8 @@ class AlarmService : Service() {
         val info = _ringing.value
         val reminder = info?.let { ReminderRepository.get(this).find(it.reminderId) }
         if (info != null && reminder != null) {
-            ReminderScheduler(this).snooze(reminder, info.date, SNOOZE_MINUTES)
-            val at = LocalTime.now().plusMinutes(SNOOZE_MINUTES.toLong()).format(DateTimeFormatter.ofPattern("HH:mm"))
+            ReminderScheduler(this).snooze(reminder, info.date, info.snoozeMinutes)
+            val at = LocalTime.now().plusMinutes(info.snoozeMinutes.toLong()).format(DateTimeFormatter.ofPattern("HH:mm"))
             Toast.makeText(this, "Sẽ báo lại lúc $at", Toast.LENGTH_LONG).show()
         }
         stopRinging()
@@ -182,7 +182,7 @@ class AlarmService : Service() {
         super.onDestroy()
     }
 
-    data class RingInfo(val reminderId: Long, val title: String, val date: LocalDate, val rule: String)
+    data class RingInfo(val reminderId: Long, val title: String, val date: LocalDate, val rule: String, val snoozeMinutes: Int)
 
     companion object {
         const val ACTION_START = "vn.itdvietnam.lichamduong.alarm.START"
@@ -190,7 +190,6 @@ class AlarmService : Service() {
         const val ACTION_SNOOZE = "vn.itdvietnam.lichamduong.alarm.SNOOZE"
         private const val EXTRA_ID = "reminder_id"
         private const val EXTRA_DATE = "occurrence_date"
-        const val SNOOZE_MINUTES = 10
         const val RING_MINUTES = 5
         private const val NOTIFICATION_ID = 0x7A1A12
         private const val REQ_ACTIVITY = 0x7A0001

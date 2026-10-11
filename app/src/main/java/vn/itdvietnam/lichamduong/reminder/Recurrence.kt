@@ -20,10 +20,17 @@ object Recurrence {
         if (r.isLunar) lunar(r, from, count) else solar(r, from, count)
 
     /** Lần báo kế tiếp sau thời điểm [now]: (ngày nhắc, thời điểm báo). */
-    fun nextAlarm(r: Reminder, now: LocalDateTime): Pair<LocalDate, LocalDateTime>? {
+    fun nextAlarm(r: Reminder, now: LocalDateTime): Pair<LocalDate, LocalDateTime>? =
+        nextAt(r, now, r.beforeDays, r.hour, r.minute)
+
+    /** Lần đổ chuông kế tiếp (null nếu nhắc không bật chuông). */
+    fun nextRing(r: Reminder, now: LocalDateTime): Pair<LocalDate, LocalDateTime>? =
+        if (r.alarm) nextAt(r, now, r.alarmBeforeDays, r.alarmHour, r.alarmMinute) else null
+
+    private fun nextAt(r: Reminder, now: LocalDateTime, before: Int, hour: Int, minute: Int): Pair<LocalDate, LocalDateTime>? {
         if (!r.enabled) return null
         return nextOccurrences(r, now.toLocalDate(), 8)
-            .map { it to it.minusDays(r.beforeDays.toLong()).atTime(r.hour, r.minute) }
+            .map { it to it.minusDays(before.toLong()).atTime(hour, minute) }
             .firstOrNull { it.second.isAfter(now) }
     }
 

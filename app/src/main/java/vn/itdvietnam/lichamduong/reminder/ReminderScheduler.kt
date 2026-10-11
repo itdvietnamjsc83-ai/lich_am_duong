@@ -9,34 +9,54 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 
-/** Đặt báo cho lần nhắc kế tiếp. Sau mỗi lần báo, [ReminderReceiver] đặt tiếp lần sau. */
+/**
+ * Đặt báo cho lần nhắc kế tiếp. Mỗi nhắc lịch có thể có hai mốc riêng:
+ * - Thông báo (hiện thông báo thường) vào giờ đã chọn.
+ * - Đổ chuông (như báo thức) vào giờ chuông đã chọn, dùng setAlarmClock để báo đúng giờ nhất.
+ * Sau mỗi lần báo, [ReminderReceiver] đặt tiếp lần sau.
+ */
 class ReminderScheduler(private val context: Context) {
 
     private val alarmManager: AlarmManager = context.getSystemService(AlarmManager::class.java)
 
     fun schedule(reminder: Reminder) {
         cancel(reminder.id)
-        val next = Recurrence.nextAlarm(reminder, LocalDateTime.now()) ?: return
-        val triggerAt = next.second.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-        val pending = pendingIntent(reminder.id, next.first)
-        setAlarm(triggerAt, pending, reminder.alarm)
+        val now = LocalDateTime.now()
+        if (!reminder.ringReplacesNotification) {
+            Recurrence.nextAlarm(reminder, now)?.let { (date, at) ->
+                setAlarm(millis(at), pendingIntent(reminder.id, date, KIND_NOTIFY), alarmClock = false)
+            }
+        }
+        Recurrence.nextRing(reminder, now)?.let { (date, at) ->
+            setAlarm(millis(at), pendingIntent(reminder.id, date, KIND_RING), alarmClock = true)
+        }
     }
 
-    /** Báo lại sau [minutes] phút cho lần nhắc ngày [date] (dùng khi bấm "Báo lại" trên màn hình chuông). */
+    /** Báo lại sau [minutes] phút cho lần nhắc ngày [date] (khi bấm "Báo lại" trên màn hình chuông). */
     fun snooze(reminder: Reminder, date: LocalDate, minutes: Int) {
         val triggerAt = System.currentTimeMillis() + minutes * 60_000L
-        val intent = Intent(context, ReminderReceiver::class.java)
-            .setAction(ACTION_REMIND)
-            .putExtra(EXTRA_ID, reminder.id)
+        val intent = baseIntent(reminder.id)
             .putExtra(EXTRA_DATE, date.toString())
+            .putExtra(EXTRA_KIND, KIND_RING)
             .putExtra(EXTRA_SNOOZE, true)
         val pending = PendingIntent.getBroadcast(
-            context,
-            reminder.id.toInt() + SNOOZE_REQUEST_OFFSET,
-            intent,
+            context, requestCode(reminder.id, SNOOZE_OFFSET), intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-        setAlarm(triggerAt, pending, reminder.alarm)
+        setAlarm(triggerAt, pending, alarmClock = true)
+    }
+
+    fun cancel(id: Long) {
+        for (offset in listOf(0, RING_OFFSET, SNOOZE_OFFSET)) {
+            val pending = PendingIntent.getBroadcast(
+                context, requestCode(id, offset), baseIntent(id),
+                PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE,
+            )
+            if (pending != null) {
+                alarmManager.cancel(pending)
+                pending.cancel()
+            }
+        }
     }
 
     private fun setAlarm(triggerAt: Long, pending: PendingIntent, alarmClock: Boolean) {
@@ -59,34 +79,34 @@ class ReminderScheduler(private val context: Context) {
         }
     }
 
-    fun cancel(id: Long) {
-        alarmManager.cancel(pendingIntent(id, null))
-        val snooze = PendingIntent.getBroadcast(
-            context, id.toInt() + SNOOZE_REQUEST_OFFSET,
-            Intent(context, ReminderReceiver::class.java).setAction(ACTION_REMIND),
-            PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE,
-        )
-        if (snooze != null) alarmManager.cancel(snooze)
-    }
-
-    private fun pendingIntent(id: Long, date: LocalDate?): PendingIntent {
-        val intent = Intent(context, ReminderReceiver::class.java)
-            .setAction(ACTION_REMIND)
-            .putExtra(EXTRA_ID, id)
-        if (date != null) intent.putExtra(EXTRA_DATE, date.toString())
+    private fun pendingIntent(id: Long, date: LocalDate, kind: String): PendingIntent {
+        val intent = baseIntent(id)
+            .putExtra(EXTRA_DATE, date.toString())
+            .putExtra(EXTRA_KIND, kind)
         return PendingIntent.getBroadcast(
-            context,
-            id.toInt(),
-            intent,
+            context, requestCode(id, if (kind == KIND_RING) RING_OFFSET else 0), intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
     }
+
+    private fun baseIntent(id: Long): Intent =
+        Intent(context, ReminderReceiver::class.java)
+            .setAction(ACTION_REMIND)
+            .putExtra(EXTRA_ID, id)
+
+    private fun requestCode(id: Long, offset: Int): Int = (id % 1_000_000).toInt() + offset
+
+    private fun millis(at: LocalDateTime): Long = at.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
 
     companion object {
         const val ACTION_REMIND = "vn.itdvietnam.lichamduong.action.REMIND"
         const val EXTRA_ID = "reminder_id"
         const val EXTRA_DATE = "occurrence_date"
+        const val EXTRA_KIND = "kind"
         const val EXTRA_SNOOZE = "snooze"
-        private const val SNOOZE_REQUEST_OFFSET = 1_000_000
+        const val KIND_NOTIFY = "notify"
+        const val KIND_RING = "ring"
+        private const val RING_OFFSET = 2_000_000
+        private const val SNOOZE_OFFSET = 1_000_000
     }
 }

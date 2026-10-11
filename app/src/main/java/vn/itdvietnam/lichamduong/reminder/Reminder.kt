@@ -32,7 +32,17 @@ data class Reminder(
     val enabled: Boolean = true,
     /** Đổ chuông và rung liên tục như báo thức (thay vì chỉ hiện thông báo). */
     val alarm: Boolean = false,
+    /** Giờ đổ chuông riêng: trước ngày nhắc [alarmBeforeDays] ngày, lúc [alarmHour]:[alarmMinute]. */
+    val alarmBeforeDays: Int = 0,
+    val alarmHour: Int = 7,
+    val alarmMinute: Int = 0,
+    /** Báo lại sau bao nhiêu phút khi bấm "Báo lại" trên màn hình chuông. */
+    val snoozeMinutes: Int = 10,
 ) {
+    /** Chuông trùng đúng giờ thông báo thì chỉ đổ chuông, không hiện thêm thông báo. */
+    val ringReplacesNotification: Boolean
+        get() = alarm && alarmBeforeDays == beforeDays && alarmHour == hour && alarmMinute == minute
+
     val isLunar: Boolean get() = calendar == CalendarType.LUNAR
 
     /** Các ngày trong tháng cần nhắc, đã sắp xếp. */
@@ -55,8 +65,9 @@ data class Reminder(
     }
 
     fun alertText(): String {
-        val time = "%02d:%02d".format(hour, minute)
-        val base = if (beforeDays == 0) "Báo $time đúng ngày" else "Báo $time, trước $beforeDays ngày"
-        return if (alarm) "$base · đổ chuông" else base
+        fun at(before: Int, h: Int, m: Int) = "%02d:%02d".format(h, m) + if (before == 0) " đúng ngày" else ", trước $before ngày"
+        if (ringReplacesNotification) return "Đổ chuông " + at(alarmBeforeDays, alarmHour, alarmMinute)
+        val notify = "Thông báo " + at(beforeDays, hour, minute)
+        return if (alarm) "$notify · Chuông " + at(alarmBeforeDays, alarmHour, alarmMinute) else notify
     }
 }
