@@ -122,7 +122,7 @@ fun SettingsScreen(
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Sao lưu & chuyển máy", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Text(
-                    "Xuất $reminderCount nhắc lịch ra một file để cất giữ (Google Drive, Zalo, máy tính…) hoặc chuyển sang điện thoại khác, " +
+                    "Xuất $reminderCount mục (nhắc lịch và việc lặp hằng ngày) ra một file để cất giữ (Google Drive, Zalo, máy tính…) hoặc chuyển sang điện thoại khác, " +
                         "kể cả iPhone. Trên máy mới, mở ứng dụng và chọn “Nhập từ file”.",
                     style = MaterialTheme.typography.bodyMedium,
                 )

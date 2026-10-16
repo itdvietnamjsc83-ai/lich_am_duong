@@ -28,6 +28,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import vn.itdvietnam.lichamduong.R
 import vn.itdvietnam.lichamduong.lunar.CanChi
 import vn.itdvietnam.lichamduong.lunar.DayInfo
+import vn.itdvietnam.lichamduong.routine.RoutineRepository
+import vn.itdvietnam.lichamduong.routine.RoutineSchedule
+import vn.itdvietnam.lichamduong.routine.RoutineScheduler
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -57,15 +60,23 @@ class AlarmService : Service() {
     }
 
     private fun startRinging(intent: Intent) {
-        val reminder = ReminderRepository.get(this).find(intent.getLongExtra(EXTRA_ID, -1L))
+        val id = intent.getLongExtra(EXTRA_ID, -1L)
         val date = intent.getStringExtra(EXTRA_DATE)?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: LocalDate.now()
-        if (reminder == null) {
+        val minute = intent.getIntExtra(EXTRA_MINUTE, -1)
+        val info = if (minute >= 0) {
+            RoutineRepository.get(this).find(id)?.let { r ->
+                val rule = listOf(RoutineSchedule.format(minute), r.who, r.note).filter { it.isNotBlank() }.joinToString(" · ")
+                RingInfo(r.id, r.title, date, rule, r.snoozeMinutes, minute)
+            }
+        } else {
+            ReminderRepository.get(this).find(id)?.let { r -> RingInfo(r.id, r.title, date, r.ruleText(), r.snoozeMinutes) }
+        }
+        if (info == null) {
             if (_ringing.value == null) stopSelf()
             return
         }
-        // Đang có chuông khác: dừng âm thanh cũ, chuyển sang nhắc mới
+        // Đang có chuông khác: dừng âm thanh cũ, chuyển sang chuông mới
         stopSound()
-        val info = RingInfo(reminder.id, reminder.title, date, reminder.ruleText(), reminder.snoozeMinutes)
         _ringing.value = info
 
         ServiceCompat.startForeground(
@@ -159,9 +170,16 @@ class AlarmService : Service() {
 
     private fun snooze() {
         val info = _ringing.value
-        val reminder = info?.let { ReminderRepository.get(this).find(it.reminderId) }
+        if (info != null && info.isRoutine) {
+            RoutineRepository.get(this).find(info.reminderId)?.let {
+                RoutineScheduler(this).snooze(it, info.date, info.minute, info.snoozeMinutes)
+            }
+        }
+        val reminder = info?.takeIf { !it.isRoutine }?.let { ReminderRepository.get(this).find(it.reminderId) }
         if (info != null && reminder != null) {
             ReminderScheduler(this).snooze(reminder, info.date, info.snoozeMinutes)
+        }
+        if (info != null) {
             val at = LocalTime.now().plusMinutes(info.snoozeMinutes.toLong()).format(DateTimeFormatter.ofPattern("HH:mm"))
             Toast.makeText(this, "Sẽ báo lại lúc $at", Toast.LENGTH_LONG).show()
         }
@@ -170,9 +188,16 @@ class AlarmService : Service() {
 
     private fun onTimeout() {
         val info = _ringing.value
-        val reminder = info?.let { ReminderRepository.get(this).find(it.reminderId) }
         stopRinging()
-        if (info != null && reminder != null) ReminderNotifications.showMissed(this, reminder, info.date)
+        if (info == null) return
+        if (info.isRoutine) {
+            ReminderNotifications.showSimple(
+                this, 600_000 + (info.reminderId % 100_000).toInt(),
+                "Đã lỡ chuông: " + info.title, info.rule,
+            )
+        } else {
+            ReminderRepository.get(this).find(info.reminderId)?.let { ReminderNotifications.showMissed(this, it, info.date) }
+        }
     }
 
     override fun onDestroy() {
@@ -182,7 +207,17 @@ class AlarmService : Service() {
         super.onDestroy()
     }
 
-    data class RingInfo(val reminderId: Long, val title: String, val date: LocalDate, val rule: String, val snoozeMinutes: Int)
+    /** Thông tin chuông đang kêu; [minute] >= 0 khi là việc lặp hằng ngày. */
+    data class RingInfo(
+        val reminderId: Long,
+        val title: String,
+        val date: LocalDate,
+        val rule: String,
+        val snoozeMinutes: Int,
+        val minute: Int = -1,
+    ) {
+        val isRoutine: Boolean get() = minute >= 0
+    }
 
     companion object {
         const val ACTION_START = "vn.itdvietnam.lichamduong.alarm.START"
@@ -190,6 +225,7 @@ class AlarmService : Service() {
         const val ACTION_SNOOZE = "vn.itdvietnam.lichamduong.alarm.SNOOZE"
         private const val EXTRA_ID = "reminder_id"
         private const val EXTRA_DATE = "occurrence_date"
+        private const val EXTRA_MINUTE = "minute"
         const val RING_MINUTES = 5
         private const val NOTIFICATION_ID = 0x7A1A12
         private const val REQ_ACTIVITY = 0x7A0001
@@ -206,6 +242,15 @@ class AlarmService : Service() {
                 .setAction(ACTION_START)
                 .putExtra(EXTRA_ID, reminderId)
                 .putExtra(EXTRA_DATE, date.toString())
+            ContextCompat.startForegroundService(context, intent)
+        }
+
+        fun startRoutine(context: Context, routineId: Long, date: LocalDate, minute: Int) {
+            val intent = Intent(context, AlarmService::class.java)
+                .setAction(ACTION_START)
+                .putExtra(EXTRA_ID, routineId)
+                .putExtra(EXTRA_DATE, date.toString())
+                .putExtra(EXTRA_MINUTE, minute)
             ContextCompat.startForegroundService(context, intent)
         }
 

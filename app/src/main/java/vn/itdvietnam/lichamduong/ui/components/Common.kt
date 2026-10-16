@@ -12,6 +12,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.AlertDialog
@@ -251,6 +254,66 @@ fun DayTimePicker(
                 TextButton(onClick = { onTime(state.hour, state.minute); showClock = false }) { Text("Xong", fontWeight = FontWeight.Bold) }
             },
             dismissButton = { TextButton(onClick = { showClock = false }) { Text("Huỷ") } },
+        )
+    }
+}
+
+/** Hộp thoại chọn giờ trên mặt đồng hồ (24 giờ). */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TimePickDialog(title: String, hour: Int, minute: Int, onDismiss: () -> Unit, onPick: (Int, Int) -> Unit) {
+    val state = rememberTimePickerState(initialHour = hour, initialMinute = minute, is24Hour = true)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = { TimePicker(state = state) },
+        confirmButton = { TextButton(onClick = { onPick(state.hour, state.minute) }) { Text("Xong", fontWeight = FontWeight.Bold) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Huỷ") } },
+    )
+}
+
+/**
+ * Dải thương hiệu nhà phát triển, luôn hiện ở cuối màn hình (trên thanh điều hướng).
+ * Chạm vào để mở thông tin liên hệ.
+ */
+@Composable
+fun BrandStrip(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val cs = MaterialTheme.colorScheme
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(cs.background)
+            .border(width = 0.5.dp, color = cs.outlineVariant)
+            .clickable(onClickLabel = "Xem thông tin nhà phát triển", onClick = onClick)
+            .heightIn(min = 34.dp)
+            .padding(horizontal = 12.dp, vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
+    ) {
+        Box(
+            Modifier
+                .clip(RoundedCornerShape(5.dp))
+                .background(androidx.compose.ui.graphics.Color.White)
+                .padding(horizontal = 6.dp, vertical = 3.dp),
+        ) {
+            androidx.compose.foundation.Image(
+                painter = androidx.compose.ui.res.painterResource(vn.itdvietnam.lichamduong.R.drawable.itd_logo),
+                contentDescription = null,
+                modifier = Modifier.heightIn(max = 16.dp),
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        Text(
+            androidx.compose.ui.text.buildAnnotatedString {
+                append("Phát triển bởi ")
+                pushStyle(androidx.compose.ui.text.SpanStyle(fontWeight = FontWeight.Bold, color = cs.onBackground))
+                append("ITD Việt Nam")
+                pop()
+                append(" · 0988 095 867")
+            },
+            style = MaterialTheme.typography.labelMedium,
+            color = cs.onSurfaceVariant,
+            maxLines = 1,
         )
     }
 }

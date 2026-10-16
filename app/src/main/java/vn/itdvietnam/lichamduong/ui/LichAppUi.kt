@@ -13,6 +13,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.navigationBarsPadding
+import vn.itdvietnam.lichamduong.routine.Routine
+import vn.itdvietnam.lichamduong.ui.components.BrandStrip
+import vn.itdvietnam.lichamduong.ui.components.SegmentedChoice
+import vn.itdvietnam.lichamduong.ui.screens.RoutineEditScreen
+import vn.itdvietnam.lichamduong.ui.screens.RoutinesScreen
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -115,7 +121,7 @@ fun LichAppUi(vm: AppViewModel, widthSizeClass: WindowWidthSizeClass) {
             runCatching {
                 context.contentResolver.openOutputStream(uri)?.use { it.write(vm.exportBackup().toByteArray(Charsets.UTF_8)) }
                     ?: error("Không mở được file")
-            }.onSuccess { toast("Đã xuất ${reminders.size} nhắc lịch ra file sao lưu") }
+            }.onSuccess { toast("Đã xuất nhắc lịch và việc lặp ra file sao lưu") }
                 .onFailure { toast("Không lưu được file sao lưu") }
         }
     }
@@ -126,7 +132,7 @@ fun LichAppUi(vm: AppViewModel, widthSizeClass: WindowWidthSizeClass) {
                     ?: error("Không đọc được file")
                 vm.importBackup(text)
             }.onSuccess { r ->
-                toast("Đã nhập ${r.added} nhắc lịch" + if (r.skipped > 0) ", bỏ qua ${r.skipped} nhắc trùng" else "")
+                toast("Đã nhập ${r.added} mục" + if (r.skipped > 0) ", bỏ qua ${r.skipped} mục trùng" else "")
                 if (r.added > 0) requestNotifications()
             }.onFailure { toast("File không đúng định dạng sao lưu của Lịch Âm Dương") }
         }
@@ -135,31 +141,39 @@ fun LichAppUi(vm: AppViewModel, widthSizeClass: WindowWidthSizeClass) {
     val actions = AppActions(
         vm = vm,
         save = { vm.save(it); requestNotifications() },
+        saveRoutine = { vm.saveRoutine(it); requestNotifications() },
         requestNotifications = requestNotifications,
         exportBackup = { exportLauncher.launch("lich-am-duong-sao-luu-${LocalDate.now()}.json") },
         importBackup = { importLauncher.launch(arrayOf("application/json", "text/plain", "application/octet-stream", "*/*")) },
     )
 
     BackHandler(enabled = vm.editing != null) { vm.editing = null }
-    BackHandler(enabled = vm.editing == null && vm.dest != Dest.MONTH) { vm.dest = Dest.MONTH }
+    BackHandler(enabled = vm.editingRoutine != null) { vm.editingRoutine = null }
+    BackHandler(enabled = vm.editing == null && vm.editingRoutine == null && vm.dest != Dest.MONTH) { vm.dest = Dest.MONTH }
 
     val twoPane = widthSizeClass != WindowWidthSizeClass.Compact
     val useRail = widthSizeClass == WindowWidthSizeClass.Expanded
 
     Scaffold(
         bottomBar = {
-            if (!useRail && !(vm.editing != null && !twoPane)) {
+            val editingAny = vm.editing != null || vm.editingRoutine != null
+            val showNav = !useRail && !(editingAny && !twoPane)
+            Column(if (showNav) Modifier else Modifier.navigationBarsPadding()) {
+            // Thương hiệu nhà phát triển: luôn hiện ở mọi màn hình
+            BrandStrip(onClick = { vm.editing = null; vm.editingRoutine = null; vm.dest = Dest.SETTINGS })
+            if (showNav) {
                 NavigationBar(containerColor = MaterialTheme.colorScheme.background) {
                     val items = if (twoPane) wideItems else compactItems
                     items.forEach { item ->
                         NavigationBarItem(
                             selected = vm.dest == item.dest || (twoPane && item.dest == Dest.MONTH && vm.dest == Dest.DAY),
-                            onClick = { vm.editing = null; vm.dest = item.dest },
+                            onClick = { vm.editing = null; vm.editingRoutine = null; vm.dest = item.dest },
                             icon = { Icon(item.icon, contentDescription = null) },
                             label = { Text(item.label) },
                         )
                     }
                 }
+            }
             }
         },
     ) { padding ->
@@ -176,6 +190,7 @@ fun LichAppUi(vm: AppViewModel, widthSizeClass: WindowWidthSizeClass) {
 private class AppActions(
     val vm: AppViewModel,
     val save: (Reminder) -> Unit,
+    val saveRoutine: (Routine) -> Unit,
     val requestNotifications: () -> Unit,
     val exportBackup: () -> Unit,
     val importBackup: () -> Unit,
@@ -222,6 +237,17 @@ private fun CompactLayout(
         )
         return
     }
+    val editingRoutine = vm.editingRoutine
+    if (editingRoutine != null) {
+        RoutineEditScreen(
+            initial = editingRoutine,
+            onSave = actions.saveRoutine,
+            onDelete = vm::deleteRoutine,
+            onClose = { vm.editingRoutine = null },
+            modifier = Modifier.fillMaxSize(),
+        )
+        return
+    }
     val openSettings = { vm.dest = Dest.SETTINGS }
     when (vm.dest) {
         Dest.MONTH -> MonthPane(vm, showEvents = false, showSelectedCard = true, onSettings = openSettings)
@@ -240,17 +266,7 @@ private fun CompactLayout(
                 modifier = Modifier.fillMaxSize(),
             )
         }
-        Dest.REMINDERS -> Column(Modifier.fillMaxSize()) {
-            TitleBar("Nhắc lịch", onSettings = openSettings)
-            RemindersScreen(
-                reminders = reminders,
-                selectedId = null,
-                onOpen = vm::edit,
-                onToggle = vm::setEnabled,
-                onCreate = { vm.newReminder() },
-                modifier = Modifier.fillMaxSize(),
-            )
-        }
+        Dest.REMINDERS -> RemindersHub(vm, reminders, onSettings = openSettings)
         Dest.SETTINGS -> Column(Modifier.fillMaxSize()) {
             TitleBar("Cài đặt", onBack = { vm.dest = Dest.MONTH })
             SettingsScreen(
@@ -260,7 +276,7 @@ private fun CompactLayout(
                 onThemeMode = vm::setThemeMode,
                 onTextSize = vm::setTextSize,
                 onRequestNotifications = actions.requestNotifications,
-                reminderCount = reminders.size,
+                reminderCount = reminders.size + vm.routines.value.size,
                 onExport = actions.exportBackup,
                 onImport = actions.importBackup,
                 modifier = Modifier.fillMaxSize(),
@@ -327,7 +343,7 @@ private fun TwoPaneLayout(
                     wideItems.forEach { item ->
                         NavigationRailItem(
                             selected = vm.dest == item.dest || (item.dest == Dest.MONTH && vm.dest == Dest.DAY),
-                            onClick = { vm.editing = null; vm.dest = item.dest },
+                            onClick = { vm.editing = null; vm.editingRoutine = null; vm.dest = item.dest },
                             icon = { Icon(item.icon, contentDescription = null) },
                             label = { Text(item.label) },
                         )
@@ -345,7 +361,7 @@ private fun TwoPaneLayout(
                             onThemeMode = vm::setThemeMode,
                             onTextSize = vm::setTextSize,
                             onRequestNotifications = actions.requestNotifications,
-                reminderCount = reminders.size,
+                reminderCount = reminders.size + vm.routines.value.size,
                 onExport = actions.exportBackup,
                 onImport = actions.importBackup,
                         )
@@ -370,17 +386,7 @@ private fun LeftPane(vm: AppViewModel, reminders: List<Reminder>) {
                 modifier = Modifier.fillMaxSize(),
             )
         }
-        Dest.REMINDERS -> Column(Modifier.fillMaxSize()) {
-            TitleBar("Nhắc lịch")
-            RemindersScreen(
-                reminders = reminders,
-                selectedId = vm.editing?.id,
-                onOpen = vm::edit,
-                onToggle = vm::setEnabled,
-                onCreate = { vm.newReminder() },
-                modifier = Modifier.fillMaxSize(),
-            )
-        }
+        Dest.REMINDERS -> RemindersHub(vm, reminders, onSettings = null)
         else -> MonthPane(vm, showEvents = true, showSelectedCard = false, onSettings = null)
     }
 }
@@ -401,7 +407,16 @@ private fun RightPane(vm: AppViewModel, reminders: List<Reminder>, actions: AppA
         }
         Dest.REMINDERS -> {
             val editing = vm.editing
-            if (editing != null) {
+            val editingRoutine = vm.editingRoutine
+            if (editingRoutine != null) {
+                RoutineEditScreen(
+                    initial = editingRoutine,
+                    onSave = actions.saveRoutine,
+                    onDelete = vm::deleteRoutine,
+                    onClose = { vm.editingRoutine = null },
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else if (editing != null) {
                 ReminderEditScreen(
                     initial = editing,
                     onSave = actions.save,
@@ -415,12 +430,17 @@ private fun RightPane(vm: AppViewModel, reminders: List<Reminder>, actions: AppA
                     verticalArrangement = Arrangement.Center,
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
+                    val routineTab = vm.remindersTab == 1
                     Text(
-                        "Chọn một nhắc lịch bên trái để sửa, hoặc tạo nhắc mới.",
+                        if (routineTab) "Chọn một việc lặp bên trái để sửa, hoặc thêm việc mới."
+                        else "Chọn một nhắc lịch bên trái để sửa, hoặc tạo nhắc mới.",
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    Button(onClick = { vm.newReminder() }, modifier = Modifier.padding(top = 16.dp)) { Text("Tạo nhắc lịch") }
+                    Button(
+                        onClick = { if (routineTab) vm.newRoutine() else vm.newReminder() },
+                        modifier = Modifier.padding(top = 16.dp),
+                    ) { Text(if (routineTab) "Thêm việc lặp" else "Tạo nhắc lịch") }
                 }
             }
         }
@@ -432,5 +452,42 @@ private fun RightPane(vm: AppViewModel, reminders: List<Reminder>, actions: AppA
             onAddReminder = { actions.newReminderFor(vm.selectedDate) },
             modifier = Modifier.fillMaxSize(),
         )
+    }
+}
+
+/** Màn hình Nhắc lịch: hai thẻ "Theo ngày âm / dương" và "Lặp hằng ngày". */
+@Composable
+private fun RemindersHub(vm: AppViewModel, reminders: List<Reminder>, onSettings: (() -> Unit)?) {
+    val routines by vm.routines.collectAsStateWithLifecycle()
+    val done by vm.routineDone.collectAsStateWithLifecycle()
+    Column(Modifier.fillMaxSize()) {
+        TitleBar("Nhắc lịch", onSettings = onSettings)
+        SegmentedChoice(
+            options = listOf("Theo ngày âm / dương", "Lặp hằng ngày"),
+            selectedIndex = vm.remindersTab,
+            onSelect = { vm.remindersTab = it; vm.editing = null; vm.editingRoutine = null },
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+        )
+        if (vm.remindersTab == 0) {
+            RemindersScreen(
+                reminders = reminders,
+                selectedId = vm.editing?.id,
+                onOpen = vm::edit,
+                onToggle = vm::setEnabled,
+                onCreate = { vm.newReminder() },
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else {
+            RoutinesScreen(
+                routines = routines,
+                done = done,
+                selectedId = vm.editingRoutine?.id,
+                onToggleDone = vm::toggleRoutineDone,
+                onOpen = vm::editRoutine,
+                onToggle = vm::setRoutineEnabled,
+                onCreate = { template -> if (template == null) vm.newRoutine() else { vm.newRoutine(); vm.editingRoutine = template } },
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
     }
 }

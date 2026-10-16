@@ -17,13 +17,22 @@ import vn.itdvietnam.lichamduong.MainActivity
 import vn.itdvietnam.lichamduong.R
 import vn.itdvietnam.lichamduong.lunar.CanChi
 import vn.itdvietnam.lichamduong.lunar.DayInfo
+import vn.itdvietnam.lichamduong.routine.Routine
+import vn.itdvietnam.lichamduong.routine.RoutineRepository
+import vn.itdvietnam.lichamduong.routine.RoutineSchedule
+import vn.itdvietnam.lichamduong.routine.RoutineScheduler
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.temporal.ChronoUnit
 
 /** Nhận báo thức: hiện thông báo rồi đặt lần nhắc kế tiếp. */
 class ReminderReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != ReminderScheduler.ACTION_REMIND) return
+        if (intent.getStringExtra(ReminderScheduler.EXTRA_KIND) == RoutineScheduler.KIND_ROUTINE) {
+            onRoutine(context, intent)
+            return
+        }
         val repo = ReminderRepository.get(context)
         val reminder = repo.find(intent.getLongExtra(ReminderScheduler.EXTRA_ID, -1L)) ?: return
         val date = intent.getStringExtra(ReminderScheduler.EXTRA_DATE)
@@ -45,10 +54,29 @@ class ReminderReceiver : BroadcastReceiver() {
     }
 }
 
+/** Báo cho việc lặp hằng ngày, rồi đặt lần kế tiếp. */
+private fun onRoutine(context: Context, intent: Intent) {
+    val routine = RoutineRepository.get(context).find(intent.getLongExtra(ReminderScheduler.EXTRA_ID, -1L)) ?: return
+    val date = intent.getStringExtra(ReminderScheduler.EXTRA_DATE)
+        ?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: LocalDate.now()
+    val minute = intent.getIntExtra(RoutineScheduler.EXTRA_MINUTE, LocalTime.now().let { it.hour * 60 + it.minute })
+    val isSnooze = intent.getBooleanExtra(ReminderScheduler.EXTRA_SNOOZE, false)
+    if (routine.enabled) {
+        if (routine.ring) {
+            val started = runCatching { AlarmService.startRoutine(context, routine.id, date, minute) }.isSuccess
+            if (!started) ReminderNotifications.showRoutine(context, routine, minute)
+        } else {
+            ReminderNotifications.showRoutine(context, routine, minute)
+        }
+    }
+    if (!isSnooze) RoutineScheduler(context).schedule(routine, after = date.atTime(minute / 60, minute % 60).plusMinutes(1))
+}
+
 /** Đặt lại toàn bộ lịch báo sau khi khởi động máy, đổi giờ hoặc cập nhật ứng dụng. */
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         ReminderRepository.get(context).rescheduleAll()
+        RoutineRepository.get(context).rescheduleAll()
     }
 }
 
@@ -69,6 +97,38 @@ object ReminderNotifications {
             context.getSystemService(NotificationManager::class.java).createNotificationChannels(listOf(channel, alarm))
         }
     }
+
+    /** Thông báo cho việc lặp hằng ngày. */
+    @SuppressLint("MissingPermission")
+    fun showRoutine(context: Context, routine: Routine, minute: Int) = showSimple(
+        context, ROUTINE_NOTIFY_BASE + (routine.id % 100_000).toInt(),
+        RoutineSchedule.format(minute) + " · " + routine.displayTitle,
+        routine.note.ifBlank { routine.ruleText() },
+    )
+
+    /** Thông báo đơn giản, mở ứng dụng khi chạm. */
+    @SuppressLint("MissingPermission")
+    fun showSimple(context: Context, id: Int, title: String, text: String) {
+        if (!canNotify(context)) return
+        val open = PendingIntent.getActivity(
+            context, id,
+            Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val n = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_stat_moon)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setContentIntent(open)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .build()
+        NotificationManagerCompat.from(context).notify(id, n)
+    }
+
+    private const val ROUTINE_NOTIFY_BASE = 500_000
 
     /** Chuông đã kêu hết thời gian mà không ai tắt: để lại thông báo "đã lỡ". */
     @SuppressLint("MissingPermission")

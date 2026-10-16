@@ -9,5 +9,6 @@ class LichApplication : Application() {
         super.onCreate()
         ReminderNotifications.createChannel(this)
         ReminderRepository.get(this).rescheduleAll()
+        vn.itdvietnam.lichamduong.routine.RoutineRepository.get(this).rescheduleAll()
     }
 }

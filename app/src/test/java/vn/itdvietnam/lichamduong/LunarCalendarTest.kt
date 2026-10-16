@@ -11,6 +11,8 @@ import vn.itdvietnam.lichamduong.reminder.CalendarType
 import vn.itdvietnam.lichamduong.reminder.Recurrence
 import vn.itdvietnam.lichamduong.reminder.Reminder
 import vn.itdvietnam.lichamduong.reminder.RepeatType
+import vn.itdvietnam.lichamduong.routine.Routine
+import vn.itdvietnam.lichamduong.routine.RoutineSchedule
 import java.time.LocalDate
 import java.time.LocalDateTime
 
@@ -91,5 +93,29 @@ class LunarCalendarTest {
         assertEquals(LocalDateTime.of(2026, 12, 13, 19, 45), Recurrence.nextAlarm(ring, LocalDateTime.of(2026, 10, 10, 9, 0))?.second)
         assertEquals(null, Recurrence.nextRing(gio, LocalDateTime.of(2026, 10, 10, 9, 0)))
         assertEquals(true, ring.copy(alarmBeforeDays = 3, alarmHour = 19, alarmMinute = 45).ringReplacesNotification)
+    }
+
+    @Test
+    fun routineSchedule() {
+        val today = LocalDate.of(2026, 10, 16) // Thứ Sáu
+        val pill = Routine(1, "Uống thuốc", times = listOf(420, 1140), startDate = today)
+        // 9:40 sáng → lần kế tiếp 19:00 hôm nay
+        assertEquals(today to 1140, RoutineSchedule.next(pill, LocalDateTime.of(2026, 10, 16, 9, 40)))
+        // 20:00 → 7:00 hôm sau
+        assertEquals(today.plusDays(1) to 420, RoutineSchedule.next(pill, LocalDateTime.of(2026, 10, 16, 20, 0)))
+        // Chỉ Thứ 2, 4, 6: sau 17:30 Thứ Sáu → Thứ Hai tuần sau
+        val trash = Routine(2, "Đổ nước thải", times = listOf(1050), days = setOf(1, 3, 5), startDate = today)
+        assertEquals(LocalDate.of(2026, 10, 19) to 1050, RoutineSchedule.next(trash, LocalDateTime.of(2026, 10, 16, 18, 0)))
+        // Hết hạn sau 10 ngày
+        val course = pill.copy(endDate = today.plusDays(9))
+        assertEquals(null, RoutineSchedule.next(course, LocalDateTime.of(2026, 10, 25, 19, 30)))
+        assertEquals(20, RoutineSchedule.totalCount(course))
+        // Gõ nhanh và chu kỳ
+        assertEquals(listOf(420, 690, 1140), RoutineSchedule.parseTimes("7h 11h30 19h"))
+        assertEquals(listOf(420, 1170, 720), RoutineSchedule.parseTimes("7:00, 19:30, 12g"))
+        assertEquals(listOf(360, 540, 720, 900, 1080, 1260), RoutineSchedule.cycle(180, 360, 1260))
+        // Danh sách hôm nay sắp theo giờ
+        assertEquals(listOf(420, 1050, 1140), RoutineSchedule.slotsOn(listOf(pill, trash), today).map { it.minute })
+        assertEquals(listOf(420, 1140), RoutineSchedule.slotsOn(listOf(pill, trash), today.plusDays(1)).map { it.minute })
     }
 }
