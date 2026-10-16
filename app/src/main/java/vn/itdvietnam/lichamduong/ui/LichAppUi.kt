@@ -463,7 +463,7 @@ private fun RemindersHub(vm: AppViewModel, reminders: List<Reminder>, onSettings
     Column(Modifier.fillMaxSize()) {
         TitleBar("Nhắc lịch", onSettings = onSettings)
         SegmentedChoice(
-            options = listOf("Theo ngày âm / dương", "Lặp hằng ngày"),
+            options = listOf("Theo ngày âm/dương", "Lặp hằng ngày"),
             selectedIndex = vm.remindersTab,
             onSelect = { vm.remindersTab = it; vm.editing = null; vm.editingRoutine = null },
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),

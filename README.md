@@ -45,6 +45,19 @@ Cả hai bản đều được GitHub Actions tự build và tự cập nhật m
   - Chuông kêu theo âm lượng báo thức của máy, nên vẫn kêu khi máy để im lặng. Có nút **Nghe thử chuông**.
   - Nếu giờ chuông trùng giờ thông báo, ứng dụng chỉ đổ chuông, không hiện thêm thông báo.
   - Trên iPhone, Apple không cho ứng dụng web đổ chuông như ứng dụng Đồng hồ. Khi thêm vào ứng dụng Lịch, giờ chuông được đưa vào thành một lần báo riêng.
+- **Lặp hằng ngày** (*Nhắc lịch › Lặp hằng ngày*): dùng cho việc làm nhiều lần mỗi ngày, như uống thuốc, cho con ăn hay đổ nước thải.
+  - Mỗi việc có nhiều giờ trong ngày. Có bốn cách nhập nhanh:
+    - gõ nhiều giờ một lúc, ví dụ `7h 11h30 19h`;
+    - chọn nhanh "2 lần", "3 lần" mỗi ngày;
+    - tạo theo chu kỳ, ví dụ "mỗi 3 giờ từ 6:00 đến 21:00";
+    - chạm vào giờ để chọn trên mặt đồng hồ.
+  - Chọn được hằng ngày hoặc chỉ một số thứ, và có thể đặt ngày kết thúc, ví dụ uống thuốc trong 10 ngày.
+  - Cách báo: đổ chuông như báo thức (có báo lại) hoặc chỉ thông báo. Có thể ghi chú, hiện ra khi báo, ví dụ "uống sau ăn, 1 viên".
+  - Danh sách **Hôm nay** liệt kê mọi lần báo theo giờ, có ô tích "đã xong" để biết đã uống thuốc, đã cho ăn hay chưa.
+  - Bản Android có nút **Thêm vào Đồng hồ của máy**, để tạo báo thức tương ứng trong ứng dụng Đồng hồ (không bắt buộc).
+  - Bản iPhone có nút **Thêm vào ứng dụng Lịch**, tạo các lịch lặp hằng tuần trong ứng dụng Lịch, có âm báo.
+  - Dùng chung file sao lưu với lịch nhắc, nên chuyển sang máy khác được.
+- **Dải thương hiệu ITD Việt Nam** luôn hiện ở cuối mọi màn hình. Chạm vào để xem thông tin liên hệ.
 - **Sao lưu & chuyển máy**: vào *Cài đặt › Sao lưu & chuyển máy*.
   - **Xuất file sao lưu**: tạo file `.json` chứa toàn bộ nhắc lịch. Lưu file vào Google Drive, iCloud, Zalo hoặc máy tính.
   - **Nhập từ file**: trên máy mới, mở file đó. Nhắc lịch được thêm vào danh sách hiện có, nhắc trùng tự bỏ qua.

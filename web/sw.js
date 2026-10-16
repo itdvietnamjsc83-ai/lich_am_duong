@@ -1,5 +1,5 @@
 /* Lưu ứng dụng vào bộ nhớ đệm để dùng được khi không có mạng. Đổi VERSION khi phát hành bản mới. */
-var VERSION = 'lad-v4';
+var VERSION = 'lad-v5';
 var FILES = ['./', 'index.html', 'style.css', 'lunar.js', 'app.js', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png', 'icons/itd-logo.png'];
 
